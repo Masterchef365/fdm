@@ -55,16 +55,12 @@ pub fn fdm(max_x: f32, max_t: f32, c: f32, n_x: usize, n_t: usize, init: &[f32])
         let t_window = &mut mesh[(t - 2) * n_x..(t + 1) * n_x];
         let (prev_rows, current_row) = t_window.split_at_mut(n_x * 2);
         let (prev_prev_row, prev_row) = prev_rows.split_at_mut(n_x);
-        //dbg!(&prev_row);
-        dbg!(current_row.len());
 
         // Solve a new row
         for (i, u) in current_row.iter_mut().enumerate() {
             let down = prev_prev_row[i];
             let neighbors @ (_, center, _) = neighborhood(prev_row, i);
-            *u = dbg!(
-                -down + 2. * center + courant * courant * central_finite_difference(neighbors)
-            );
+            *u = -down + 2. * center + courant * courant * central_finite_difference(neighbors);
         }
     }
 

@@ -1,13 +1,26 @@
 use fdm::fdm;
 use idek::{prelude::*, IndexBuffer};
+use std::time::Instant;
 
 fn main() -> Result<()> {
     let dt = 0.01;
-    let init = [1., 1., 1., 1., 1., 0., 0., 0., 0., 0., 0., 0.];
-    let time_len = 500;
-    let x_len = init.len();
+    let x_len = 1000;
+    let init: Vec<f32> = (0..x_len)
+        .map(|x| {
+            if (x >= x_len / 3) && (x <= 2 * x_len / 3) {
+                1.
+            } else {
+                0.
+            }
+        })
+        .collect();
+    let time_len = 2000;
 
-    let mesh = fdm(10., dt * time_len as f32, 1.0, x_len, time_len, &init);
+    let start = Instant::now();
+
+    let mesh = fdm(10., dt * time_len as f32, 0.5, x_len, time_len, &init);
+
+    println!("FDM took {} ms", start.elapsed().as_secs_f32() * 1000.);
 
     let sim = SimData {
         x_len,
@@ -46,9 +59,9 @@ impl App<SimData> for TriangleApp {
 
         Ok(Self {
             line_shader: ctx.shader(
-                 DEFAULT_VERTEX_SHADER,
-                 DEFAULT_FRAGMENT_SHADER,
-                 Primitive::Lines,
+                DEFAULT_VERTEX_SHADER,
+                DEFAULT_FRAGMENT_SHADER,
+                Primitive::Lines,
             )?,
             verts,
             indices,
@@ -59,11 +72,13 @@ impl App<SimData> for TriangleApp {
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         self.frame = (self.frame + 1) % self.sim.time_len;
-        
+
         let vertices = sim_vertices(&self.sim, self.frame);
         ctx.update_vertices(self.verts, &vertices)?;
 
-        Ok(vec![DrawCmd::new(self.verts).indices(self.indices).shader(self.line_shader)])
+        Ok(vec![DrawCmd::new(self.verts)
+            .indices(self.indices)
+            .shader(self.line_shader)])
     }
 
     fn event(&mut self, ctx: &mut Context, platform: &mut Platform, event: Event) -> Result<()> {

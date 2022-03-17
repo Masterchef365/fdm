@@ -7,14 +7,15 @@ fn main() -> Result<()> {
     let x_len = 1000;
     let init: Vec<f32> = (0..x_len)
         .map(|x| {
-            if (x >= x_len / 3) && (x <= 2 * x_len / 3) {
+            //if (x >= x_len / 3) && (x <= 2 * x_len / 3) {
+            if x == x_len / 2 {
                 1.
             } else {
                 0.
             }
         })
         .collect();
-    let time_len = 2000;
+    let time_len = 8000;
 
     let start = Instant::now();
 
@@ -45,10 +46,12 @@ struct TriangleApp {
 
     frame: usize,
     sim: SimData,
+
+    camera: MultiPlatformCamera,
 }
 
 impl App<SimData> for TriangleApp {
-    fn init(ctx: &mut Context, _: &mut Platform, sim: SimData) -> Result<Self> {
+    fn init(ctx: &mut Context, platform: &mut Platform, sim: SimData) -> Result<Self> {
         let vertices = sim_vertices(&sim, 0);
 
         let verts = ctx.vertices(&vertices, true)?;
@@ -67,6 +70,7 @@ impl App<SimData> for TriangleApp {
             indices,
             sim,
             frame: 0,
+            camera: MultiPlatformCamera::new(platform),
         })
     }
 
@@ -81,8 +85,15 @@ impl App<SimData> for TriangleApp {
             .shader(self.line_shader)])
     }
 
-    fn event(&mut self, ctx: &mut Context, platform: &mut Platform, event: Event) -> Result<()> {
-        idek::simple_ortho_cam_ctx(ctx, platform);
+    fn event(
+        &mut self,
+        ctx: &mut Context,
+        platform: &mut Platform,
+        mut event: Event,
+    ) -> Result<()> {
+        if self.camera.handle_event(&mut event) {
+            ctx.set_camera_prefix(self.camera.get_prefix())
+        }
         idek::close_when_asked(platform, &event);
         Ok(())
     }

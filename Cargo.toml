@@ -7,3 +7,4 @@ edition = "2021"
 
 [dev-dependencies]
 idek = { git = "https://github.com/Masterchef365/idek.git", rev = "6a5678f" }
+num-complex = "0.4"

@@ -66,4 +66,3 @@ pub fn fdm(max_x: f32, max_t: f32, c: f32, n_x: usize, n_t: usize, init: &[f32])
 
     mesh
 }
-

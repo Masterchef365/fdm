@@ -387,6 +387,7 @@ name = "fdm"
 version = "0.1.0"
 dependencies = [
  "idek",
+ "num-complex 0.4.0",
 ]
 
 [[package]]
@@ -623,7 +624,7 @@ checksum = "476d1d59fe02fe54c86356e91650cd892f392782a1cb9fc524ec84f7aa9e1d06"
 dependencies = [
  "approx",
  "matrixmultiply",
- "num-complex",
+ "num-complex 0.3.1",
  "num-rational",
  "num-traits",
  "simba",
@@ -737,6 +738,15 @@ name = "num-complex"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "747d632c0c558b87dbabbe6a82f3b4ae03720d0646ac5b7b4dae89394be5f2c5"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26873667bbbb7c5182d4a37c1add32cdf09f841af72da53318fdb81543c15085"
 dependencies = [
  "num-traits",
 ]
@@ -996,7 +1006,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5132a955559188f3d13c9ba831e77c802ddc8782783f050ed0c52f5988b95f4c"
 dependencies = [
  "approx",
- "num-complex",
+ "num-complex 0.3.1",
  "num-traits",
  "paste",
 ]

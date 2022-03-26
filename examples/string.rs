@@ -1,20 +1,22 @@
 use fdm::fdm;
 use idek::{prelude::*, IndexBuffer};
 use std::time::Instant;
+use num_complex::Complex32;
 
 fn main() -> Result<()> {
     let dt = 0.01;
     let x_len = 1000;
-    let init: Vec<f32> = (0..x_len)
+    let init: Vec<Complex32> = (0..x_len)
         .map(|x| {
             //if (x >= x_len / 3) && (x <= 2 * x_len / 3) {
             if x == x_len / 2 {
-                1.
+                Complex32::new(0.5, 2.5)
             } else {
-                0.
+                Complex32::new(0., 0.)
             }
         })
         .collect();
+
     let time_len = 8000;
 
     let start = Instant::now();
@@ -36,7 +38,7 @@ fn main() -> Result<()> {
 pub struct SimData {
     pub x_len: usize,
     pub time_len: usize,
-    pub data: Vec<f32>,
+    pub data: Vec<Complex32>,
 }
 
 struct TriangleApp {
@@ -112,7 +114,7 @@ fn sim_vertices(sim: &SimData, t: usize) -> Vec<Vertex> {
     row.iter()
         .enumerate()
         .map(|(i, u)| Vertex {
-            pos: [x_map(i), -*u, 0.],
+            pos: [x_map(i), -u.re, u.im],
             color: [1.; 3],
         })
         .collect()

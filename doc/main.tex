@@ -1,0 +1,116 @@
+\documentclass[12pt]{article}
+\usepackage[letterpaper, margin=.5in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage[pdf]{graphviz}
+\usepackage{enumitem}
+\usepackage{parskip}
+\newcommand{\ra}{\rightarrow} 
+
+\begin{document}
+
+Schr\"{o}dinger equation:
+
+\[ 
+    i \hbar \frac{d}{dt} \Psi(x, t) = 
+    -\frac{\hbar^2}{2m} \frac{d^2}{dx^2} \Psi(x, t) 
+    %\left[ -\frac{\hbar^2}{2m} \frac{d^2}{dx^2} + V(x, t) \right] \Psi(x, t) 
+\]
+
+Finite differences:
+\[
+    \frac{d}{dt} f(t) 
+        \approx \frac{f(t + \Delta t) - f(t)}{\Delta t}
+        = f_t
+\]
+
+\[
+    \frac{d^2}{dt^2} f(x) 
+        \approx \frac{f(x - \Delta x) - 2 f(t) + f(x + \Delta x)}{\Delta x^2}
+        = f_{xx}
+\]
+
+Use the finite difference approximation of the Schr\"{o}dinger equation:
+\[ 
+    i \hbar \Psi_t = 
+    -\frac{\hbar^2}{2m} \Psi_{xx}
+\]
+
+Explicit:
+\[ 
+    i \hbar \frac{\Psi(x, t + \Delta t) - \Psi(x, t)}{\Delta t} 
+    = -\frac{\hbar^2}{2m} \frac{\Psi(x - \Delta x, t) - 2 \Psi(x, t) + \Psi(x + \Delta x, t)}{\Delta x^2}
+\]
+
+Implicit:
+\[ 
+    i \hbar \frac{\Psi(x, t + \Delta t) - \Psi(x, t)}{\Delta t} 
+    = -\frac{\hbar^2}{2m} \frac{\Psi(x - \Delta x, t + \Delta t) - 2 \Psi(x, t + \Delta t) + \Psi(x + \Delta x, t + \Delta t)}{\Delta x^2}
+\]
+
+\[ 
+    i \hbar \left[ \Psi(x, t + \Delta t) - \Psi(x, t) \right]
+    = -\frac{\hbar^2}{2m} \frac{\Delta t}{\Delta x^2} \left[ \Psi(x - \Delta x, t + \Delta t) - 2
+    \Psi(x, t + \Delta t) + \Psi(x + \Delta x, t + \Delta t) \right]
+\]
+
+\[ 
+    - i \hbar \Psi(x, t)
+    = -\frac{\hbar^2}{2m} \frac{\Delta t}{\Delta x^2} \left[ \Psi(x - \Delta x, t + \Delta t) - 2
+    \Psi(x, t + \Delta t) + \Psi(x + \Delta x, t + \Delta t) \right] - i \hbar \Psi(x, t + \Delta t)
+\]
+
+\[ 
+    \hbar \Psi(x, t)
+    = -i \frac{\hbar^2}{2m} \frac{\Delta t}{\Delta x^2} \left[ \Psi(x - \Delta x, t + \Delta t) - 2
+    \Psi(x, t + \Delta t) + \Psi(x + \Delta x, t + \Delta t) \right] + \hbar \Psi(x, t + \Delta t)
+\]
+
+\[ 
+    \Psi(x, t)
+    = -i \frac{\hbar}{2m} \frac{\Delta t}{\Delta x^2} \left[ \Psi(x - \Delta x, t + \Delta t) - 2
+    \Psi(x, t + \Delta t) + \Psi(x + \Delta x, t + \Delta t) \right] + \Psi(x, t + \Delta t)
+\]
+
+\[ r = -i \frac{\hbar}{2m} \frac{\Delta t}{\Delta x^2} \]
+
+\[ 
+    \Psi(x, t)
+    = r \left[ \Psi(x - \Delta x, t + \Delta t) - 2
+    \Psi(x, t + \Delta t) + \Psi(x + \Delta x, t + \Delta t) \right] + \Psi(x, t + \Delta t)
+\]
+
+\[ 
+    \Psi(x, t)
+    = r\Psi(x - \Delta x, t + \Delta t) + (1 - 2r)\Psi(x, t + \Delta t) + r\Psi(x + \Delta x, t + \Delta t)
+\]
+
+Stencil:
+\[ \Psi(t) = \begin{bmatrix} r & (1 - 2r) & r \end{bmatrix} \Psi(t + \Delta t) \]
+
+
+Jacobi method:
+\[ Ax = b \]
+\[ A \Psi(t + \Delta t) = \Psi(t) \]
+
+\[ x^{k + 1}_i = \frac{1}{A_{ii}} \left( b_i - \sum_{i \ne j} A_{ij} x_j^k \right) \]
+
+Intuition for why it works:
+\[ A_{ii} x^{k + 1}_i = b_i - \sum_{i \ne j} A_{ij} x_j^k \]
+\[ A_{ii} x^{k + 1}_i + \sum_{i \ne j} A_{ij} x_j^k = b_i  \]
+\[ Ax = b  \]
+
+Application to our FDM:
+
+\[ \Psi(x, t + \Delta t)^{k + 1} 
+    = \frac{1}{1 - 2r} 
+    \left[ 
+        \Psi(x, t) 
+        - r\Psi(x - \Delta x, t + \Delta_t)^{k} 
+        - r\Psi(x + \Delta x, t + \Delta_t)^{k} 
+    \right]
+\]
+
+
+\end{document}

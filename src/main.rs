@@ -21,6 +21,7 @@ fn main() -> Result<()> {
 
 struct FdmVisualizer {
     verts: VertexBuffer,
+    amp_verts: VertexBuffer,
     indices: IndexBuffer,
     line_shader: Shader,
 
@@ -46,14 +47,18 @@ impl App for FdmVisualizer {
         let fdm = Fdm::new(&init, 1.);
 
         let vertices = fdm_vertices(&fdm);
-
         let verts = ctx.vertices(&vertices, true)?;
+
+        let amp_vertices = amp_vertices(&fdm);
+        let amp_verts = ctx.vertices(&amp_vertices, true)?;
+
         let indices: Vec<u32> = (1..vertices.len() * 2 - 1)
             .map(|i| (i / 2) as u32)
             .collect();
         let indices = ctx.indices(&indices, false)?;
 
         Ok(Self {
+            amp_verts,
             fdm,
             line_shader: ctx.shader(
                 DEFAULT_VERTEX_SHADER,
@@ -72,9 +77,23 @@ impl App for FdmVisualizer {
         let vertices = fdm_vertices(&self.fdm);
         ctx.update_vertices(self.verts, &vertices)?;
 
-        Ok(vec![DrawCmd::new(self.verts)
+        let amp_vertices = amp_vertices(&self.fdm);
+        ctx.update_vertices(self.amp_verts, &amp_vertices)?;
+
+        Ok(vec![
+            DrawCmd::new(self.amp_verts)
             .indices(self.indices)
-            .shader(self.line_shader)])
+            .shader(self.line_shader)
+            .transform([
+                [1., 0., 0., 0.],
+                [0., 1., 0., 0.],
+                [0., 0., 1., 0.],
+                [0., 0., 1., 1.],
+            ]),
+            DrawCmd::new(self.verts)
+            .indices(self.indices)
+            .shader(self.line_shader)
+        ])
     }
 
     fn event(
@@ -99,6 +118,19 @@ fn fdm_vertices(fdm: &Fdm) -> Vec<Vertex> {
         .enumerate()
         .map(|(i, u)| Vertex {
             pos: [x_map(i), -u.re, u.im],
+            color: [1.; 3],
+        })
+        .collect()
+}
+
+fn amp_vertices(fdm: &Fdm) -> Vec<Vertex> {
+    let x_map = |i: usize| (i as f32 * fdm.dx()) * 2. - 1.;
+
+    fdm.grid()
+        .iter()
+        .enumerate()
+        .map(|(i, u)| Vertex {
+            pos: [x_map(i), u.norm(), 0.],
             color: [1.; 3],
         })
         .collect()

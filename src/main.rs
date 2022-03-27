@@ -3,19 +3,6 @@ use idek::{prelude::*, IndexBuffer};
 use num_complex::Complex32;
 
 fn main() -> Result<()> {
-    /*
-    let dt = 0.01;
-    let x_len = 1000;
-
-    let time_len = 8000;
-
-    let sim = SimData {
-        x_len,
-        time_len,
-        data: mesh,
-    };
-    */
-
     launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args())
 }
 
@@ -37,7 +24,7 @@ impl App for FdmVisualizer {
             .map(|x| {
                 //if (x >= x_len / 3) && (x <= 2 * x_len / 3) {
                 if x == n_cells / 2 {
-                    Complex32::new(10.0, 0.)
+                    Complex32::new(100.0, 0.)
                 } else {
                     Complex32::new(0., 0.)
                 }
@@ -72,7 +59,9 @@ impl App for FdmVisualizer {
     }
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
-        self.fdm.step(0.000001, |x: f32| Complex32::new(x, 0.));
+        for _ in 0..3 {
+            self.fdm.step(0.000001, |x: f32| Complex32::new(x, 0.));
+        }
 
         let vertices = fdm_vertices(&self.fdm);
         ctx.update_vertices(self.verts, &vertices)?;
@@ -88,7 +77,7 @@ impl App for FdmVisualizer {
                 [1., 0., 0., 0.],
                 [0., 1., 0., 0.],
                 [0., 0., 1., 0.],
-                [0., 0., 1., 1.],
+                [0., 0., -2., 1.],
             ]),
             DrawCmd::new(self.verts)
             .indices(self.indices)
@@ -118,7 +107,7 @@ fn fdm_vertices(fdm: &Fdm) -> Vec<Vertex> {
         .enumerate()
         .map(|(i, u)| Vertex {
             pos: [x_map(i), -u.re, u.im],
-            color: [1.; 3],
+            color: [1., u.re.abs(), u.im.abs()],
         })
         .collect()
 }
@@ -131,7 +120,7 @@ fn amp_vertices(fdm: &Fdm) -> Vec<Vertex> {
         .enumerate()
         .map(|(i, u)| Vertex {
             pos: [x_map(i), u.norm(), 0.],
-            color: [1.; 3],
+            color: [0.1, 0.4, 1.],
         })
         .collect()
 }

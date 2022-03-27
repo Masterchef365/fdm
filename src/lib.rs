@@ -48,6 +48,10 @@ impl Fdm {
         &self.current
     }
 
+    pub fn grid_mut(&mut self) -> &mut [Complex32] {
+        &mut self.current
+    }
+
     pub fn dx(&self) -> f32 {
         self.dx
     }

@@ -1,6 +1,11 @@
 use fdm::Fdm;
-use idek::{prelude::*, IndexBuffer, winit::event::{Event as WinitEvent, WindowEvent, KeyboardInput, ElementState, VirtualKeyCode}};
+use idek::{
+    prelude::*,
+    winit::event::{ElementState, Event as WinitEvent, KeyboardInput, VirtualKeyCode, WindowEvent},
+    IndexBuffer,
+};
 use num_complex::Complex32;
+use rand::{distributions::Uniform, prelude::*};
 
 fn main() -> Result<()> {
     launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args())
@@ -66,9 +71,19 @@ impl App for FdmVisualizer {
     }
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
+        let noise_floor = 0.01;
+        let amp = Uniform::new(-noise_floor, noise_floor);
+        let angle = Uniform::new(0., std::f32::consts::PI);
+
         if !self.pause {
             for _ in 0..3 {
                 self.fdm.step(0.000001, |x: f32| Complex32::new(x, 0.));
+                self.fdm
+                    .grid_mut()
+                    .iter_mut()
+                    .zip(angle.sample_iter(&mut thread_rng()))
+                    .zip(amp.sample_iter(&mut thread_rng()))
+                    .for_each(|((grid, amp), angle)| *grid += Complex32::from_polar(angle, amp));
             }
         }
 
@@ -80,17 +95,17 @@ impl App for FdmVisualizer {
 
         Ok(vec![
             DrawCmd::new(self.amp_verts)
-            .indices(self.indices)
-            .shader(self.line_shader)
-            .transform([
-                [1., 0., 0., 0.],
-                [0., 1., 0., 0.],
-                [0., 0., 1., 0.],
-                [0., 0., -2., 1.],
-            ]),
+                .indices(self.indices)
+                .shader(self.line_shader)
+                .transform([
+                    [1., 0., 0., 0.],
+                    [0., 1., 0., 0.],
+                    [0., 0., 1., 0.],
+                    [0., 0., -2., 1.],
+                ]),
             DrawCmd::new(self.verts)
-            .indices(self.indices)
-            .shader(self.line_shader)
+                .indices(self.indices)
+                .shader(self.line_shader),
         ])
     }
 

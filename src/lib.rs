@@ -7,7 +7,7 @@ const fn zero() -> Complex32 {
 pub struct Fdm {
     last: Vec<Complex32>,
     current: Vec<Complex32>,
-    dx: f32,
+    dx: Complex32,
     h: f32,
     m: f32,
 }
@@ -18,13 +18,13 @@ impl Fdm {
         Self {
             current: init.to_vec(),
             last: vec![zero(); init.len()],
-            dx: width / init.len() as f32,
+            dx: Complex32::new(width / init.len() as f32, width / init.len() as f32),
             h,
             m,
         }
     }
 
-    pub fn step(&mut self, dt: f32, v: impl Fn(f32) -> Complex32) {
+    pub fn step(&mut self, dt: Complex32, v: impl Fn(f32) -> Complex32) {
         std::mem::swap(&mut self.last, &mut self.current);
         for ((idx, current), last) in self
             .current
@@ -39,7 +39,7 @@ impl Fdm {
 
             *current = last[1]
                 + (dt / (self.dx * self.dx)) * (self.h / (2. * self.m)) * Complex32::i() * cfd
-                - dt / self.h * Complex32::i() * v(x) * last[1];
+                - dt / self.h * Complex32::i() * v(x.re) * last[1];
         }
     }
 
@@ -48,7 +48,7 @@ impl Fdm {
     }
 
     pub fn dx(&self) -> f32 {
-        self.dx
+        self.dx.re
     }
 }
 

@@ -36,7 +36,7 @@ impl App for FdmVisualizer {
             .map(|x| {
                 //if (x >= x_len / 3) && (x <= 2 * x_len / 3) {
                 if x == n_cells / 2 {
-                    Complex32::new(0.5, -0.5)
+                    Complex32::new(1.5, 0.)
                 } else {
                     Complex32::new(0., 0.)
                 }
@@ -67,7 +67,8 @@ impl App for FdmVisualizer {
     }
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
-        self.fdm.step(0.00000001, |x: f32| Complex32::new(x, 0.));
+        let dt = 0.000001;
+        self.fdm.step(Complex32::new(dt, dt), |x: f32| Complex32::new(x, x));
 
         let vertices = fdm_vertices(&self.fdm);
         ctx.update_vertices(self.verts, &vertices)?;

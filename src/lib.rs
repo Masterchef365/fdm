@@ -7,6 +7,7 @@ const fn zero() -> Complex32 {
 pub struct Fdm {
     last: Vec<Complex32>,
     current: Vec<Complex32>,
+    scratch: Vec<Complex32>,
     dx: f32,
     h: f32,
     m: f32,
@@ -18,6 +19,7 @@ impl Fdm {
         Self {
             current: init.to_vec(),
             last: vec![zero(); init.len()],
+            scratch: vec![zero(); init.len()],
             dx: width / init.len() as f32,
             h,
             m,
@@ -26,20 +28,34 @@ impl Fdm {
 
     pub fn step(&mut self, dt: f32, v: impl Fn(f32) -> Complex32) {
         std::mem::swap(&mut self.last, &mut self.current);
-        for ((idx, current), last) in self
-            .current
-            .iter_mut()
-            .enumerate()
-            .skip(1)
-            .zip(self.last.windows(3))
-        {
-            let x = idx as f32 * self.dx;
+        const K: usize = 20;
 
-            let cfd = central_finite_difference((last[0], last[1], last[2]));
+        let r = dt / (self.dx * self.dx);
 
-            *current = last[1]
-                + (dt / (self.dx * self.dx)) * (self.h / (2. * self.m)) * Complex32::i() * cfd
-                - dt / self.h * Complex32::i() * v(x) * last[1];
+        for _ in 0..K {
+            for ((idx, (last, scratch)), current) in self
+                .last
+                .iter()
+                .zip(&mut self.scratch)
+                .enumerate()
+                .skip(1)
+                .zip(self.current.windows(3))
+            {
+
+                let cfd = current[0] - 2. * current[1] + current[2];
+                *scratch = current[1] + r * Complex32::i() * (*last - cfd);
+
+                /*
+                let cfd = central_finite_difference((last[0], last[1], last[2]));
+
+                *current = last[1]
+                    + (dt / (self.dx * self.dx)) * (self.h / (2. * self.m)) * Complex32::i() * cfd;
+                */
+                //let x = idx as f32 * self.dx;
+                //- dt / self.h * Complex32::i() * v(x) * last[1];
+            }
+
+            std::mem::swap(&mut self.current, &mut self.scratch);
         }
     }
 

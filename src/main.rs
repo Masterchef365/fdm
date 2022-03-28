@@ -75,21 +75,9 @@ impl App for FdmVisualizer {
     }
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
-        //let noise_floor: f32 = 10. * self.fdm.dx();
-        //let amp = Uniform::new(-noise_floor, noise_floor);
-        //let angle = Uniform::new(0., std::f32::consts::PI);
-
         if !self.pause {
             for _ in 0..3 {
                 self.fdm.step(0.000001, |x: f32| Complex32::new(x, 0.));
-                /*
-                self.fdm
-                    .grid_mut()
-                    .iter_mut()
-                    .zip(angle.sample_iter(&mut thread_rng()))
-                    .zip(amp.sample_iter(&mut thread_rng()))
-                    .for_each(|((grid, amp), angle)| *grid += Complex32::from_polar(angle, amp));
-                */
             }
         }
         dbg!(self.fdm.grid().iter().map(|e| e.norm_sqr()).sum::<f32>());

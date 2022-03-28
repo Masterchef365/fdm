@@ -24,7 +24,7 @@ impl Fdm {
 
     pub fn step(&mut self, dt: f32, _v: impl Fn(f32) -> Complex32) {
         std::mem::swap(&mut self.last, &mut self.current);
-        const K: usize = 80;
+        const K: usize = 10;
 
         // here hbar / 2m = 1
         let r = -Complex32::i() * dt / (self.dx * self.dx);

@@ -25,12 +25,12 @@ struct FdmVisualizer {
 }
 
 fn init_fdm() -> Fdm {
-    let n_cells = 10_000;
+    let n_cells = 50_000;
     let width = 10.;
 
     let dx = width / n_cells as f32;
     let t = 0.0;
-    let a = Complex32::from_polar(1., 1.);
+    let a = Complex32::from_polar(10., 1.);
     let h = 1.;
     let m = 1.;
 

@@ -24,13 +24,14 @@ struct FdmVisualizer {
     camera: MultiPlatformCamera,
 }
 
-fn init_fdm() -> Fdm {
+fn init_fdm(time: f32) -> Fdm {
     let n_cells = 10_000;
     let width = 10.;
 
     let dx = width / n_cells as f32;
     let t = 0.0;
-    let a = Complex32::from_polar(1., 1.);
+    let a = Complex32::from_polar(1., time);
+    dbg!(a);
     let h = 1.;
     let m = 1.;
 
@@ -46,7 +47,7 @@ fn init_fdm() -> Fdm {
 
 impl App for FdmVisualizer {
     fn init(ctx: &mut Context, platform: &mut Platform, _: ()) -> Result<Self> {
-        let fdm = init_fdm();
+        let fdm = init_fdm(0.0);
 
         let vertices = fdm_vertices(&fdm);
         let verts = ctx.vertices(&vertices, true)?;
@@ -78,6 +79,8 @@ impl App for FdmVisualizer {
         //let noise_floor: f32 = 10. * self.fdm.dx();
         //let amp = Uniform::new(-noise_floor, noise_floor);
         //let angle = Uniform::new(0., std::f32::consts::PI);
+
+        self.fdm = init_fdm(ctx.start_time().elapsed().as_secs_f32() / 1.);
 
         if !self.pause {
             for _ in 0..3 {
@@ -133,7 +136,7 @@ impl App for FdmVisualizer {
                         if input.state == ElementState::Released {
                             match key {
                                 VirtualKeyCode::Space => self.pause = !self.pause,
-                                VirtualKeyCode::R => self.fdm = init_fdm(),
+                                VirtualKeyCode::R => self.fdm = init_fdm(ctx.start_time().elapsed().as_secs_f32() / 1.),
                                 _ => (),
                             }
                         }

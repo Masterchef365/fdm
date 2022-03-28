@@ -13,12 +13,12 @@ pub struct Fdm {
 
 impl Fdm {
     /// Creates a new FDM with the given width (in the X direction) and initial grid contents `init`
-    pub fn new(init: &[Complex32], width: f32) -> Self {
+    pub fn new(init: &[Complex32], dx: f32) -> Self {
         Self {
             current: init.to_vec(),
             last: vec![zero(); init.len()],
             scratch: vec![zero(); init.len()],
-            dx: width / init.len() as f32,
+            dx,
         }
     }
 

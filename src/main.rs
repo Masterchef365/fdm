@@ -1,7 +1,7 @@
 use fdm::Fdm;
 use idek::{
     prelude::*,
-    winit::event::{ElementState, Event as WinitEvent, KeyboardInput, VirtualKeyCode, WindowEvent},
+    winit::event::{ElementState, Event as WinitEvent, VirtualKeyCode, WindowEvent},
     IndexBuffer,
 };
 use num_complex::Complex32;
@@ -25,19 +25,23 @@ struct FdmVisualizer {
 }
 
 fn init_fdm() -> Fdm {
-    let n_cells = 1000;
+    let n_cells = 10_000;
+    let width = 10.;
+
+    let dx = width / n_cells as f32;
+    let t = 0.0;
+    let a = Complex32::from_polar(1., 1.);
+    let h = 1.;
+    let m = 1.;
+
     let init: Vec<Complex32> = (0..n_cells)
-        .map(|x| {
-            //if (x >= x_len / 3) && (x <= 2 * x_len / 3) {
-            if x == n_cells / 2 {
-                Complex32::new(100.0, 0.)
-            } else {
-                Complex32::new(0., 0.)
-            }
+        .map(|idx| {
+            let x = (idx as f32 - n_cells as f32 / 2.) * dx;
+            wave_packet(x, t, a, h, m)
         })
         .collect();
 
-    Fdm::new(&init, 1.)
+    Fdm::new(&init, dx)
 }
 
 impl App for FdmVisualizer {
@@ -71,21 +75,24 @@ impl App for FdmVisualizer {
     }
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
-        let noise_floor = 0.01;
-        let amp = Uniform::new(-noise_floor, noise_floor);
-        let angle = Uniform::new(0., std::f32::consts::PI);
+        //let noise_floor: f32 = 10. * self.fdm.dx();
+        //let amp = Uniform::new(-noise_floor, noise_floor);
+        //let angle = Uniform::new(0., std::f32::consts::PI);
 
         if !self.pause {
             for _ in 0..3 {
                 self.fdm.step(0.000001, |x: f32| Complex32::new(x, 0.));
+                /*
                 self.fdm
                     .grid_mut()
                     .iter_mut()
                     .zip(angle.sample_iter(&mut thread_rng()))
                     .zip(amp.sample_iter(&mut thread_rng()))
                     .for_each(|((grid, amp), angle)| *grid += Complex32::from_polar(angle, amp));
+                */
             }
         }
+        dbg!(self.fdm.grid().iter().map(|e| e.norm_sqr()).sum::<f32>());
 
         let vertices = fdm_vertices(&self.fdm);
         ctx.update_vertices(self.verts, &vertices)?;
@@ -164,4 +171,14 @@ fn amp_vertices(fdm: &Fdm) -> Vec<Vertex> {
             color: [0.1, 0.4, 1.],
         })
         .collect()
+}
+
+/// Output the given wave function value for a wave packet at w(x, t) with parameters
+/// a: The square of the width of the packet
+/// h: Planck's constant (adjustable for viewing purposes)
+/// m: The mass of the particle
+/// https://en.wikipedia.org/wiki/Wave_packet
+fn wave_packet(x: f32, t: f32, a: Complex32, h: f32, m: f32) -> Complex32 {
+    let ihtm = Complex32::i() * h * t / m;
+    (a / (a + ihtm)).powf(3. / 2.) * (-x * x / (2. * (a + ihtm))).exp()
 }

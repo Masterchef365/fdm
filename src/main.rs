@@ -30,7 +30,7 @@ fn init_fdm() -> Fdm {
 
     let dx = width / n_cells as f32;
     let t = 0.0;
-    let a = Complex32::from_polar(10., 1.);
+    let a = Complex32::from_polar(2., 0.);
     let h = 1.;
     let m = 1.;
 
@@ -77,7 +77,7 @@ impl App for FdmVisualizer {
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
             for _ in 0..3 {
-                self.fdm.step(0.000001, |x: f32| Complex32::new(x, 0.));
+                self.fdm.step(0.0000001, |x: f32| Complex32::new(x, 0.));
             }
         }
         dbg!(self.fdm.grid().iter().map(|e| e.norm_sqr()).sum::<f32>());

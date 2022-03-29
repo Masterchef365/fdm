@@ -11,7 +11,8 @@ fn main() -> Result<()> {
 }
 
 struct FdmVisualizer {
-    verts: VertexBuffer,
+    re_verts: VertexBuffer,
+    im_verts: VertexBuffer,
     amp_verts: VertexBuffer,
     indices: IndexBuffer,
     point_shader: Shader,
@@ -23,39 +24,43 @@ struct FdmVisualizer {
     camera: MultiPlatformCamera,
 }
 
+const SCALE: f32 = 10.;
 fn init_fdm() -> Fdm {
-    let width = 100;
-    let scale = 10.;
+    let width = 150;
 
-    let dx = scale / width as f32;
+    let dx = SCALE / width as f32;
     let t = 0.0;
-    let a = Complex32::from_polar(1., 1.);
+    let a = Complex32::from_polar(2., 0.);
     let h = 1.;
     let m = 1.;
 
-    let mut init = wave_packet_2d(width, scale, t, a, h, m);
+    let mut init = wave_packet_2d(width, SCALE, t, a, h, m);
 
     init[(width/2, width/2)] = Complex32::new(100., 0.);
 
     Fdm::new(init, dx)
 }
 
-fn scene(fdm: &Fdm) -> (Vec<Vertex>, Vec<Vertex>) {
+fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
     let scale = 1.0;
-    (
-        fdm_vertices(&fdm, |cpx| cpx.re, scale),
-        fdm_vertices(&fdm, |cpx| cpx.norm_sqr(), scale)
-    )
+    [
+        fdm_vertices(&fdm, |cpx| (cpx.re, [0., 0.3, 1.]), scale),
+        fdm_vertices(&fdm, |cpx| (cpx.im, [1., 0.3, 0.]), scale),
+        fdm_vertices(&fdm, |cpx| (cpx.norm_sqr(), [1.; 3]), scale)
+    ]
 }
 
 impl App for FdmVisualizer {
     fn init(ctx: &mut Context, platform: &mut Platform, _: ()) -> Result<Self> {
         let fdm = init_fdm();
 
-        let (verts, amp_verts) = scene(&fdm);
-        let indices = linear_indices(verts.len());
-        let verts = ctx.vertices(&verts, true)?;
+        let [re_verts, im_verts, amp_verts] = scene(&fdm);
+        let indices = linear_indices(amp_verts.len());
+
+        let re_verts = ctx.vertices(&re_verts, true)?;
+        let im_verts = ctx.vertices(&im_verts, true)?;
         let amp_verts = ctx.vertices(&amp_verts, true)?;
+
         let indices = ctx.indices(&indices, false)?;
 
         Ok(Self {
@@ -67,7 +72,8 @@ impl App for FdmVisualizer {
                 DEFAULT_FRAGMENT_SHADER,
                 Primitive::Points,
             )?,
-            verts,
+            re_verts,
+            im_verts,
             indices,
             camera: MultiPlatformCamera::new(platform),
         })
@@ -77,8 +83,9 @@ impl App for FdmVisualizer {
         if !self.pause {
             self.fdm.step(0.001, |_: f32| Complex32::new(0., 0.));
 
-            let (verts, amp_verts) = scene(&self.fdm);
-            ctx.update_vertices(self.verts, &verts)?;
+            let [re_verts, im_verts, amp_verts] = scene(&self.fdm);
+            ctx.update_vertices(self.im_verts, &im_verts)?;
+            ctx.update_vertices(self.re_verts, &re_verts)?;
             ctx.update_vertices(self.amp_verts, &amp_verts)?;
         }
 
@@ -86,15 +93,25 @@ impl App for FdmVisualizer {
             DrawCmd::new(self.amp_verts)
                 .indices(self.indices)
                 .shader(self.point_shader)
-                .transform([
-                    [1., 0., 0., 0.],
-                    [0., 1., 0., 0.],
-                    [0., 0., 1., 0.],
-                    [0., 0., -11., 1.],
-                ]),
-            DrawCmd::new(self.verts)
+                .transform(translate(-SCALE - 1., 0., 0.)),
+
+            DrawCmd::new(self.re_verts)
                 .indices(self.indices)
                 .shader(self.point_shader),
+
+            DrawCmd::new(self.im_verts)
+                .indices(self.indices)
+                .shader(self.point_shader),
+
+            DrawCmd::new(self.im_verts)
+                .indices(self.indices)
+                .shader(self.point_shader)
+                .transform(translate(-SCALE - 1., 0., -SCALE - 1.)),
+
+            DrawCmd::new(self.re_verts)
+                .indices(self.indices)
+                .shader(self.point_shader)
+                .transform(translate(0., 0., -SCALE - 1.)),
         ])
     }
 
@@ -129,16 +146,16 @@ impl App for FdmVisualizer {
     }
 }
 
-fn fdm_vertices(fdm: &Fdm, height: fn(Complex32) -> f32, scale: f32) -> Vec<Vertex> {
+fn fdm_vertices(fdm: &Fdm, display: fn(Complex32) -> (f32, [f32; 3]), scale: f32) -> Vec<Vertex> {
     let grid = fdm.grid();
     let mut vertices = Vec::with_capacity(grid.width() * grid.height());
     for j in 0..grid.height() {
         for i in 0..grid.width() {
-            let y = height(grid[(i, j)]);
+            let (y, color) = display(grid[(i, j)]);
             let x = i as f32 * fdm.dx();
             let z = j as f32 * fdm.dx();
             let pos = [x, y, z].map(|v| v * scale);
-            vertices.push(Vertex::new(pos, [1.; 3]));
+            vertices.push(Vertex::new(pos, color));
         }
     }
     vertices
@@ -173,4 +190,13 @@ fn wave_packet_2d(width: usize, scale: f32, t: f32, a: Complex32, h: f32, m: f32
     }
 
     grid
+}
+
+fn translate(x: f32, y: f32, z: f32) -> [[f32; 4]; 4] {
+    [
+        [1., 0., 0., 0.],
+        [0., 1., 0., 0.],
+        [0., 0., 1., 0.],
+        [x, y, z, 1.],
+    ]
 }

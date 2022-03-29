@@ -85,11 +85,7 @@ impl App for FdmVisualizer {
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
             self.fdm.step(1./2., |_: f32| Complex32::new(0., 0.));
-
-            let [re_verts, im_verts, amp_verts] = scene(&self.fdm);
-            ctx.update_vertices(self.im_verts, &im_verts)?;
-            ctx.update_vertices(self.re_verts, &re_verts)?;
-            ctx.update_vertices(self.amp_verts, &amp_verts)?;
+            self.refresh_vertices(ctx);
         }
 
         Ok(vec![
@@ -135,7 +131,10 @@ impl App for FdmVisualizer {
                         if input.state == ElementState::Released {
                             match key {
                                 VirtualKeyCode::Space => self.pause = !self.pause,
-                                VirtualKeyCode::R => self.fdm = init_fdm(),
+                                VirtualKeyCode::R => {
+                                    self.fdm = init_fdm();
+                                    self.refresh_vertices(ctx)?;
+                                }
                                 _ => (),
                             }
                         }
@@ -145,6 +144,16 @@ impl App for FdmVisualizer {
         }
 
         idek::close_when_asked(platform, &event);
+        Ok(())
+    }
+}
+
+impl FdmVisualizer {
+    pub fn refresh_vertices(&mut self, ctx: &mut Context) -> Result<()> {
+        let [re_verts, im_verts, amp_verts] = scene(&self.fdm);
+        ctx.update_vertices(self.im_verts, &im_verts)?;
+        ctx.update_vertices(self.re_verts, &re_verts)?;
+        ctx.update_vertices(self.amp_verts, &amp_verts)?;
         Ok(())
     }
 }

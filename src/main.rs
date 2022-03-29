@@ -7,7 +7,7 @@ use idek::{
 use num_complex::Complex32;
 
 fn main() -> Result<()> {
-    launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args())
+    launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(8))
 }
 
 struct FdmVisualizer {
@@ -26,22 +26,25 @@ struct FdmVisualizer {
 
 const SCALE: f32 = 10.;
 fn init_fdm() -> Fdm {
-    let width = 150;
+    let width = 100;
 
     let dx = SCALE / width as f32;
     let t = 0.0;
-    let a = Complex32::from_polar(2., 0.);
+    let a = Complex32::from_polar(1., 0.);
     let h = 1.;
     let m = 1.;
 
     let mut init = wave_packet_2d(width, SCALE, t, a, h, m);
+    init.data_mut().iter_mut().for_each(|c| *c *= 5.);
 
-    init[(width/2, width/2)] = Complex32::new(100., 0.);
+    //init[(width/2, width/2)] = Complex32::new(1000., 0.);
 
     Fdm::new(init, dx)
 }
 
 fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
+    //dbg!(fdm.grid().data().iter().map(|c| c.norm_sqr()).sum::<f32>());
+
     let scale = 1.0;
     [
         fdm_vertices(&fdm, |cpx| (cpx.re, [0., 0.3, 1.]), scale),
@@ -81,7 +84,7 @@ impl App for FdmVisualizer {
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
-            self.fdm.step(0.001, |_: f32| Complex32::new(0., 0.));
+            self.fdm.step(1./2., |_: f32| Complex32::new(0., 0.));
 
             let [re_verts, im_verts, amp_verts] = scene(&self.fdm);
             ctx.update_vertices(self.im_verts, &im_verts)?;

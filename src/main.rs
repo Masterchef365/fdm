@@ -1,11 +1,10 @@
-use fdm::Fdm;
+use fdm::{Fdm, Array2D, inner_size};
 use idek::{
     prelude::*,
     winit::event::{ElementState, Event as WinitEvent, VirtualKeyCode, WindowEvent},
     IndexBuffer,
 };
 use num_complex::Complex32;
-use rand::{distributions::Uniform, prelude::*};
 
 fn main() -> Result<()> {
     launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args())
@@ -15,7 +14,7 @@ struct FdmVisualizer {
     verts: VertexBuffer,
     amp_verts: VertexBuffer,
     indices: IndexBuffer,
-    line_shader: Shader,
+    point_shader: Shader,
 
     fdm: Fdm,
 
@@ -25,48 +24,48 @@ struct FdmVisualizer {
 }
 
 fn init_fdm() -> Fdm {
-    let n_cells = 10_000;
-    let width = 10.;
+    let width = 100;
+    let scale = 10.;
 
-    let dx = width / n_cells as f32;
+    let dx = scale / width as f32;
     let t = 0.0;
     let a = Complex32::from_polar(1., 1.);
     let h = 1.;
     let m = 1.;
 
-    let init: Vec<Complex32> = (0..n_cells)
-        .map(|idx| {
-            let x = (idx as f32 - n_cells as f32 / 2.) * dx;
-            wave_packet(x, t, a, h, m)
-        })
-        .collect();
+    let mut init = wave_packet_2d(width, scale, t, a, h, m);
 
-    Fdm::new(&init, dx)
+    init[(width/2, width/2)] = Complex32::new(100., 0.);
+
+    Fdm::new(init, dx)
+}
+
+fn scene(fdm: &Fdm) -> (Vec<Vertex>, Vec<Vertex>) {
+    let scale = 1.0;
+    (
+        fdm_vertices(&fdm, |cpx| cpx.re, scale),
+        fdm_vertices(&fdm, |cpx| cpx.norm_sqr(), scale)
+    )
 }
 
 impl App for FdmVisualizer {
     fn init(ctx: &mut Context, platform: &mut Platform, _: ()) -> Result<Self> {
         let fdm = init_fdm();
 
-        let vertices = fdm_vertices(&fdm);
-        let verts = ctx.vertices(&vertices, true)?;
-
-        let amp_vertices = amp_vertices(&fdm);
-        let amp_verts = ctx.vertices(&amp_vertices, true)?;
-
-        let indices: Vec<u32> = (1..vertices.len() * 2 - 1)
-            .map(|i| (i / 2) as u32)
-            .collect();
+        let (verts, amp_verts) = scene(&fdm);
+        let indices = linear_indices(verts.len());
+        let verts = ctx.vertices(&verts, true)?;
+        let amp_verts = ctx.vertices(&amp_verts, true)?;
         let indices = ctx.indices(&indices, false)?;
 
         Ok(Self {
             pause: true,
             amp_verts,
             fdm,
-            line_shader: ctx.shader(
+            point_shader: ctx.shader(
                 DEFAULT_VERTEX_SHADER,
                 DEFAULT_FRAGMENT_SHADER,
-                Primitive::Lines,
+                Primitive::Points,
             )?,
             verts,
             indices,
@@ -75,44 +74,27 @@ impl App for FdmVisualizer {
     }
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
-        //let noise_floor: f32 = 10. * self.fdm.dx();
-        //let amp = Uniform::new(-noise_floor, noise_floor);
-        //let angle = Uniform::new(0., std::f32::consts::PI);
-
         if !self.pause {
-            for _ in 0..3 {
-                self.fdm.step(0.000001, |x: f32| Complex32::new(x, 0.));
-                /*
-                self.fdm
-                    .grid_mut()
-                    .iter_mut()
-                    .zip(angle.sample_iter(&mut thread_rng()))
-                    .zip(amp.sample_iter(&mut thread_rng()))
-                    .for_each(|((grid, amp), angle)| *grid += Complex32::from_polar(angle, amp));
-                */
-            }
+            self.fdm.step(0.001, |_: f32| Complex32::new(0., 0.));
+
+            let (verts, amp_verts) = scene(&self.fdm);
+            ctx.update_vertices(self.verts, &verts)?;
+            ctx.update_vertices(self.amp_verts, &amp_verts)?;
         }
-        dbg!(self.fdm.grid().iter().map(|e| e.norm_sqr()).sum::<f32>());
-
-        let vertices = fdm_vertices(&self.fdm);
-        ctx.update_vertices(self.verts, &vertices)?;
-
-        let amp_vertices = amp_vertices(&self.fdm);
-        ctx.update_vertices(self.amp_verts, &amp_vertices)?;
 
         Ok(vec![
             DrawCmd::new(self.amp_verts)
                 .indices(self.indices)
-                .shader(self.line_shader)
+                .shader(self.point_shader)
                 .transform([
                     [1., 0., 0., 0.],
                     [0., 1., 0., 0.],
                     [0., 0., 1., 0.],
-                    [0., 0., -2., 1.],
+                    [0., 0., -11., 1.],
                 ]),
             DrawCmd::new(self.verts)
                 .indices(self.indices)
-                .shader(self.line_shader),
+                .shader(self.point_shader),
         ])
     }
 
@@ -147,30 +129,23 @@ impl App for FdmVisualizer {
     }
 }
 
-fn fdm_vertices(fdm: &Fdm) -> Vec<Vertex> {
-    let x_map = |i: usize| (i as f32 * fdm.dx()) * 2. - 1.;
-
-    fdm.grid()
-        .iter()
-        .enumerate()
-        .map(|(i, u)| Vertex {
-            pos: [x_map(i), u.re, u.im],
-            color: [1., u.re.abs(), u.im.abs()],
-        })
-        .collect()
+fn fdm_vertices(fdm: &Fdm, height: fn(Complex32) -> f32, scale: f32) -> Vec<Vertex> {
+    let grid = fdm.grid();
+    let mut vertices = Vec::with_capacity(grid.width() * grid.height());
+    for j in 0..grid.height() {
+        for i in 0..grid.width() {
+            let y = height(grid[(i, j)]);
+            let x = i as f32 * fdm.dx();
+            let z = j as f32 * fdm.dx();
+            let pos = [x, y, z].map(|v| v * scale);
+            vertices.push(Vertex::new(pos, [1.; 3]));
+        }
+    }
+    vertices
 }
 
-fn amp_vertices(fdm: &Fdm) -> Vec<Vertex> {
-    let x_map = |i: usize| (i as f32 * fdm.dx()) * 2. - 1.;
-
-    fdm.grid()
-        .iter()
-        .enumerate()
-        .map(|(i, u)| Vertex {
-            pos: [x_map(i), u.norm_sqr(), 0.],
-            color: [0.1, 0.4, 1.],
-        })
-        .collect()
+fn linear_indices(len: usize) -> Vec<u32> {
+    (0..len as u32).collect()
 }
 
 /// Output the given wave function value for a wave packet at w(x, t) with parameters
@@ -181,4 +156,21 @@ fn amp_vertices(fdm: &Fdm) -> Vec<Vertex> {
 fn wave_packet(x: f32, t: f32, a: Complex32, h: f32, m: f32) -> Complex32 {
     let ihtm = Complex32::i() * h * t / m;
     (a / (a + ihtm)).powf(3. / 2.) * (-x * x / (2. * (a + ihtm))).exp()
+}
+
+fn wave_packet_2d(width: usize, scale: f32, t: f32, a: Complex32, h: f32, m: f32) -> Array2D {
+    let mut grid = Array2D::new(width, width);
+    let (nx, ny) = inner_size(&grid);
+
+    let coord_map = |v: usize| ((v as f32 / width as f32) * 2. - 1.) * scale;
+
+    for j in 1..nx {
+        for i in 1..ny {
+            let [x, y] = [i, j].map(coord_map);
+            let r = (x * x + y * y).sqrt();
+            grid[(i, j)] = wave_packet(r, t, a, h, m);
+        }
+    }
+
+    grid
 }

@@ -28,7 +28,7 @@ impl Fdm {
         let (nx, ny) = inner_size(&self.current);
 
         std::mem::swap(&mut self.last, &mut self.current);
-        const K: usize = 40;
+        const K: usize = 80;
 
         // here hbar / 2m = 1
         let r = -Complex32::i() * dt;// / (self.dx * self.dx);

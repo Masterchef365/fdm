@@ -7,3 +7,5 @@ edition = "2021"
 num-complex = "0.4"
 idek = { git = "https://github.com/Masterchef365/idek.git", rev = "6a5678f" }
 rand = "0.8"
+anyhow = "1"
+png = "0.17"

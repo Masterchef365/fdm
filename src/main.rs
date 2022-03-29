@@ -4,10 +4,17 @@ use idek::{
     winit::event::{ElementState, Event as WinitEvent, VirtualKeyCode, WindowEvent},
     IndexBuffer,
 };
+use anyhow::{Result, Context as AnyhowContext};
 use num_complex::Complex32;
+use png::{BitDepth, ColorType};
+use std::fs::File;
+
+type Args = String;
 
 fn main() -> Result<()> {
-    launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(8))
+    let mut args = std::env::args().skip(1);
+    let image_path = args.next().context("Requires image path")?;
+    launch::<Args, FdmVisualizer>(Settings::default().args(image_path))
 }
 
 struct FdmVisualizer {
@@ -17,6 +24,9 @@ struct FdmVisualizer {
     indices: IndexBuffer,
     point_shader: Shader,
 
+    init_buf: Array2D,
+    dx: f32,
+
     fdm: Fdm,
 
     pause: bool,
@@ -25,10 +35,8 @@ struct FdmVisualizer {
 }
 
 const SCALE: f32 = 10.;
+/*
 fn init_fdm() -> Fdm {
-    let width = 100;
-
-    let dx = SCALE / width as f32;
     let t = 0.0;
     let a = Complex32::from_polar(1., 0.);
     let h = 1.;
@@ -41,6 +49,7 @@ fn init_fdm() -> Fdm {
 
     Fdm::new(init, dx)
 }
+*/
 
 fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
     //dbg!(fdm.grid().data().iter().map(|c| c.norm_sqr()).sum::<f32>());
@@ -53,9 +62,12 @@ fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
     ]
 }
 
-impl App for FdmVisualizer {
-    fn init(ctx: &mut Context, platform: &mut Platform, _: ()) -> Result<Self> {
-        let fdm = init_fdm();
+impl App<Args> for FdmVisualizer {
+    fn init(ctx: &mut Context, platform: &mut Platform, image_path: Args) -> Result<Self> {
+        let init_buf = png_wave(&image_path)?;
+
+        let dx = SCALE / init_buf.width() as f32;
+        let fdm = Fdm::new(init_buf.clone(), dx);
 
         let [re_verts, im_verts, amp_verts] = scene(&fdm);
         let indices = linear_indices(amp_verts.len());
@@ -67,6 +79,8 @@ impl App for FdmVisualizer {
         let indices = ctx.indices(&indices, false)?;
 
         Ok(Self {
+            dx,
+            init_buf,
             pause: true,
             amp_verts,
             fdm,
@@ -85,7 +99,7 @@ impl App for FdmVisualizer {
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
             self.fdm.step(1./2., |_: f32| Complex32::new(0., 0.));
-            self.refresh_vertices(ctx);
+            self.refresh_vertices(ctx)?;
         }
 
         Ok(vec![
@@ -132,7 +146,7 @@ impl App for FdmVisualizer {
                             match key {
                                 VirtualKeyCode::Space => self.pause = !self.pause,
                                 VirtualKeyCode::R => {
-                                    self.fdm = init_fdm();
+                                    self.fdm = Fdm::new(self.init_buf.clone(), self.dx);
                                     self.refresh_vertices(ctx)?;
                                 }
                                 _ => (),
@@ -211,4 +225,28 @@ fn translate(x: f32, y: f32, z: f32) -> [[f32; 4]; 4] {
         [0., 0., 1., 0.],
         [x, y, z, 1.],
     ]
+}
+
+fn png_wave(path: &str) -> Result<Array2D> {
+    let decoder = png::Decoder::new(File::open(path)?);
+    let mut reader = decoder.read_info()?;
+    let mut image_data: Vec<u8> = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut image_data)?;
+    let image_data = &image_data[..info.buffer_size()];
+
+    assert_eq!(info.bit_depth, BitDepth::Eight);
+    assert_eq!(info.color_type, ColorType::Rgb);
+
+    let width = (info.width.max(info.height) + 2) as usize;
+
+    let mut grid = Array2D::new(width, width);
+
+    for (j, row) in image_data.chunks_exact(info.line_size).enumerate() {
+        for (i, pixel) in row.chunks_exact(3).enumerate().take(width) {
+            let value = pixel.iter().map(|&v| v as f32 / 256.).sum::<f32>().sqrt();
+            grid[(i+1, j+1)] = Complex32::new(value, 0.);
+        }
+    }
+
+    Ok(grid)
 }

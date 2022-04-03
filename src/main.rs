@@ -1,10 +1,10 @@
-use fdm::{Fdm, Array2D, inner_size};
+use anyhow::{Context as AnyhowContext, Result};
+use fdm::{inner_size, Array2D, Fdm};
 use idek::{
     prelude::*,
     winit::event::{ElementState, Event as WinitEvent, VirtualKeyCode, WindowEvent},
     IndexBuffer,
 };
-use anyhow::{Result, Context as AnyhowContext};
 use num_complex::Complex32;
 use png::{BitDepth, ColorType};
 use std::fs::File;
@@ -18,16 +18,14 @@ fn main() -> Result<()> {
 }
 
 struct FdmVisualizer {
-    re_verts: VertexBuffer,
-    im_verts: VertexBuffer,
-    amp_verts: VertexBuffer,
+    verts: VertexBuffer,
     indices: IndexBuffer,
     point_shader: Shader,
 
-    init_buf: Array2D,
+    init_bufs: [Array2D; 3],
     dx: f32,
 
-    fdm: Fdm,
+    fdms: [Fdm; 3],
 
     pause: bool,
 
@@ -35,62 +33,49 @@ struct FdmVisualizer {
 }
 
 const SCALE: f32 = 10.;
-/*
-fn init_fdm() -> Fdm {
-    let t = 0.0;
-    let a = Complex32::from_polar(1., 0.);
-    let h = 1.;
-    let m = 1.;
 
-    let mut init = wave_packet_2d(width, SCALE, t, a, h, m);
-    init.data_mut().iter_mut().for_each(|c| *c *= 5.);
-
-    //init[(width/2, width/2)] = Complex32::new(1000., 0.);
-
-    Fdm::new(init, dx)
-}
-*/
-
-fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
-    //dbg!(fdm.grid().data().iter().map(|c| c.norm_sqr()).sum::<f32>());
-
+fn scene(fdm: &[Fdm; 3]) -> Vec<Vertex> {
     let scale = 1.0;
-    [
-        fdm_vertices(&fdm, |cpx| (cpx.re, [0., 0.3, 1.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.im, [1., 0.3, 0.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.norm_sqr(), [1.; 3]), scale)
-    ]
+    fdm_vertices(
+        &fdm,
+        |[r, g, b]| {
+            (
+                //(r * r + g * g + b * b).norm(),
+                (r + g + b).norm(),
+                [r.norm_sqr(), g.norm_sqr(), b.norm_sqr()]
+                    .map(|v| v * 10.),
+            )
+        },
+        scale,
+    )
 }
 
 impl App<Args> for FdmVisualizer {
     fn init(ctx: &mut Context, platform: &mut Platform, image_path: Args) -> Result<Self> {
-        let init_buf = png_wave(&image_path)?;
+        let init_bufs = png_wave(&image_path)?;
 
-        let dx = SCALE / init_buf.width() as f32;
-        let fdm = Fdm::new(init_buf.clone(), dx);
+        let dx = SCALE / init_bufs[0].width() as f32;
+        let fdms = init_bufs.clone().map(|init_buf| Fdm::new(init_buf, dx));
 
-        let [re_verts, im_verts, amp_verts] = scene(&fdm);
-        let indices = linear_indices(amp_verts.len());
+        let verts = scene(&fdms);
 
-        let re_verts = ctx.vertices(&re_verts, true)?;
-        let im_verts = ctx.vertices(&im_verts, true)?;
-        let amp_verts = ctx.vertices(&amp_verts, true)?;
+        let indices = linear_indices(verts.len());
+
+        let verts = ctx.vertices(&verts, true)?;
 
         let indices = ctx.indices(&indices, false)?;
 
         Ok(Self {
             dx,
-            init_buf,
+            init_bufs,
             pause: true,
-            amp_verts,
-            fdm,
+            verts,
+            fdms,
             point_shader: ctx.shader(
                 DEFAULT_VERTEX_SHADER,
                 DEFAULT_FRAGMENT_SHADER,
                 Primitive::Points,
             )?,
-            re_verts,
-            im_verts,
             indices,
             camera: MultiPlatformCamera::new(platform),
         })
@@ -98,33 +83,16 @@ impl App<Args> for FdmVisualizer {
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
-            self.fdm.step(1./2., |_: f32| Complex32::new(0., 0.));
+            for fdm in &mut self.fdms {
+                fdm.step(1. / 2., |_: f32| Complex32::new(0., 0.));
+            }
             self.refresh_vertices(ctx)?;
         }
 
         Ok(vec![
-            DrawCmd::new(self.amp_verts)
+            DrawCmd::new(self.verts)
                 .indices(self.indices)
-                .shader(self.point_shader)
-                .transform(translate(-SCALE - 1., 0., 0.)),
-
-            DrawCmd::new(self.re_verts)
-                .indices(self.indices)
-                .shader(self.point_shader),
-
-            DrawCmd::new(self.im_verts)
-                .indices(self.indices)
-                .shader(self.point_shader),
-
-            DrawCmd::new(self.im_verts)
-                .indices(self.indices)
-                .shader(self.point_shader)
-                .transform(translate(-SCALE - 1., 0., -SCALE - 1.)),
-
-            DrawCmd::new(self.re_verts)
-                .indices(self.indices)
-                .shader(self.point_shader)
-                .transform(translate(0., 0., -SCALE - 1.)),
+                .shader(self.point_shader), //.transform(translate(-SCALE - 1., 0., 0.)),
         ])
     }
 
@@ -138,6 +106,7 @@ impl App<Args> for FdmVisualizer {
             ctx.set_camera_prefix(self.camera.get_prefix())
         }
 
+        #[allow(irrefutable_let_patterns)]
         if let Event::Winit(event) = &event {
             if let WinitEvent::WindowEvent { event, .. } = event {
                 if let WindowEvent::KeyboardInput { input, .. } = event {
@@ -146,7 +115,8 @@ impl App<Args> for FdmVisualizer {
                             match key {
                                 VirtualKeyCode::Space => self.pause = !self.pause,
                                 VirtualKeyCode::R => {
-                                    self.fdm = Fdm::new(self.init_buf.clone(), self.dx);
+                                    self.fdms =
+                                        self.init_bufs.clone().map(|buf| Fdm::new(buf, self.dx));
                                     self.refresh_vertices(ctx)?;
                                 }
                                 _ => (),
@@ -164,22 +134,24 @@ impl App<Args> for FdmVisualizer {
 
 impl FdmVisualizer {
     pub fn refresh_vertices(&mut self, ctx: &mut Context) -> Result<()> {
-        let [re_verts, im_verts, amp_verts] = scene(&self.fdm);
-        ctx.update_vertices(self.im_verts, &im_verts)?;
-        ctx.update_vertices(self.re_verts, &re_verts)?;
-        ctx.update_vertices(self.amp_verts, &amp_verts)?;
+        ctx.update_vertices(self.verts, &scene(&self.fdms))?;
         Ok(())
     }
 }
 
-fn fdm_vertices(fdm: &Fdm, display: fn(Complex32) -> (f32, [f32; 3]), scale: f32) -> Vec<Vertex> {
-    let grid = fdm.grid();
+fn fdm_vertices(
+    fdms: &[Fdm; 3],
+    display: fn([Complex32; 3]) -> (f32, [f32; 3]),
+    scale: f32,
+) -> Vec<Vertex> {
+    let grid = fdms[0].grid();
     let mut vertices = Vec::with_capacity(grid.width() * grid.height());
     for j in 0..grid.height() {
         for i in 0..grid.width() {
-            let (y, color) = display(grid[(i, j)]);
-            let x = i as f32 * fdm.dx();
-            let z = j as f32 * fdm.dx();
+            let values = [0, 1, 2].map(|idx| fdms[idx].grid()[(i, j)]);
+            let (y, color) = display(values);
+            let x = i as f32 * fdms[0].dx();
+            let z = j as f32 * fdms[0].dx();
             let pos = [x, y, z].map(|v| v * scale);
             vertices.push(Vertex::new(pos, color));
         }
@@ -227,7 +199,7 @@ fn translate(x: f32, y: f32, z: f32) -> [[f32; 4]; 4] {
     ]
 }
 
-fn png_wave(path: &str) -> Result<Array2D> {
+fn png_wave(path: &str) -> Result<[Array2D; 3]> {
     let decoder = png::Decoder::new(File::open(path)?);
     let mut reader = decoder.read_info()?;
     let mut image_data: Vec<u8> = vec![0; reader.output_buffer_size()];
@@ -239,14 +211,16 @@ fn png_wave(path: &str) -> Result<Array2D> {
 
     let width = (info.width.max(info.height) + 2) as usize;
 
-    let mut grid = Array2D::new(width, width);
+    let mut grids = [(); 3].map(|_| Array2D::new(width, width));
 
     for (j, row) in image_data.chunks_exact(info.line_size).enumerate() {
         for (i, pixel) in row.chunks_exact(3).enumerate().take(width) {
-            let value = pixel.iter().map(|&v| v as f32 / 256.).sum::<f32>().sqrt();
-            grid[(i+1, j+1)] = Complex32::new(value, 0.);
+            for (channel, grid) in pixel.iter().zip(&mut grids) {
+                let value = *channel as f32 / 256.;
+                grid[(i + 1, j + 1)] = Complex32::new(value, 0.);
+            }
         }
     }
 
-    Ok(grid)
+    Ok(grids)
 }

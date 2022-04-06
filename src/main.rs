@@ -14,7 +14,7 @@ use idek::{
 use num_complex::Complex32;
 use rayon::prelude::*;
 
-fn nah_main() -> Result<()> {
+fn main() -> Result<()> {
     launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(8))
 }
 
@@ -34,7 +34,7 @@ struct FdmVisualizer {
 
 const SCALE: f32 = 10.;
 fn init_fdm() -> Fdm {
-    let width = 100;
+    let width = 250;
 
     let dx = SCALE / width as f32;
     let t = 0.0;
@@ -45,31 +45,27 @@ fn init_fdm() -> Fdm {
     let mut init = wave_packet_2d(width, SCALE, t, a, h, m);
     init.data_mut().iter_mut().for_each(|c| *c *= 5.);
 
-    //init[(width/2, width/2)] = Complex32::new(1000., 0.);
+    //init[(width/2, width/2)] = Complex32::new(200., 0.);
 
     Fdm::new(init, dx)
 }
 
-fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
+fn scene(fdm: &Fdm) -> Vec<Vertex> {
     //dbg!(fdm.grid().data().iter().map(|c| c.norm_sqr()).sum::<f32>());
 
     let scale = 1.0;
-    [
-        fdm_vertices(&fdm, |cpx| (cpx.re, [0., 0.3, 1.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.im, [1., 0.3, 0.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.norm_sqr(), [1.; 3]), scale),
-    ]
+    fdm_vertices(&fdm, |cpx| (cpx.norm_sqr(), [1.; 3]), scale)
 }
 
 impl App for FdmVisualizer {
     fn init(ctx: &mut Context, platform: &mut Platform, _: ()) -> Result<Self> {
         let fdm = init_fdm();
 
-        let [re_verts, im_verts, amp_verts] = scene(&fdm);
+        let amp_verts = scene(&fdm);
         let indices = linear_indices(amp_verts.len());
 
-        let re_verts = ctx.vertices(&re_verts, true)?;
-        let im_verts = ctx.vertices(&im_verts, true)?;
+        let re_verts = ctx.vertices(&amp_verts, true)?;
+        let im_verts = ctx.vertices(&amp_verts, true)?;
         let amp_verts = ctx.vertices(&amp_verts, true)?;
 
         let indices = ctx.indices(&indices, false)?;
@@ -101,7 +97,7 @@ impl App for FdmVisualizer {
                 .indices(self.indices)
                 .shader(self.point_shader)
                 .transform(translate(-SCALE - 1., 0., 0.)),
-            DrawCmd::new(self.re_verts)
+            /*DrawCmd::new(self.re_verts)
                 .indices(self.indices)
                 .shader(self.point_shader),
             DrawCmd::new(self.im_verts)
@@ -114,7 +110,7 @@ impl App for FdmVisualizer {
             DrawCmd::new(self.re_verts)
                 .indices(self.indices)
                 .shader(self.point_shader)
-                .transform(translate(0., 0., -SCALE - 1.)),
+                .transform(translate(0., 0., -SCALE - 1.)),*/
         ])
     }
 
@@ -154,9 +150,9 @@ impl App for FdmVisualizer {
 
 impl FdmVisualizer {
     pub fn refresh_vertices(&mut self, ctx: &mut Context) -> Result<()> {
-        let [re_verts, im_verts, amp_verts] = scene(&self.fdm);
-        ctx.update_vertices(self.im_verts, &im_verts)?;
-        ctx.update_vertices(self.re_verts, &re_verts)?;
+        let amp_verts = scene(&self.fdm);
+        //ctx.update_vertices(self.im_verts, &im_verts)?;
+        //ctx.update_vertices(self.re_verts, &re_verts)?;
         ctx.update_vertices(self.amp_verts, &amp_verts)?;
         Ok(())
     }
@@ -267,15 +263,15 @@ fn mandelbrot_color(i: Option<NonZeroU32>, max_iters: u32) -> [u8; 3] {
     }
 }
 
-fn main() -> Result<()> {
+fn no_main() -> Result<()> {
     let path = "out.ppm";
     let mut file = BufWriter::new(File::create(path)?);
     let max_iters = 255;
-    let (width, height) = (2_000, 2_000);
+    let (width, height) = (5_000, 5_000);
 
     println!("Generating");
     let time = std::time::Instant::now();
-    let image = mandelbrot_image_aa(width, height, 2., (-1. / 4., 0.), max_iters, 1, |i| {
+    let image = mandelbrot_image_aa(width, height, 2., (-1. / 4., 0.), max_iters, 4, |i| {
         mandelbrot_color(i, max_iters)
     });
     println!("Finished in {}s, writing...", time.elapsed().as_secs_f32());
@@ -290,13 +286,23 @@ fn main() -> Result<()> {
 
 fn fdm_vertices(fdm: &Fdm, display: fn(Complex32) -> (f32, [f32; 3]), scale: f32) -> Vec<Vertex> {
     let grid = fdm.grid();
+
+    let max_iters = 50;
+
     let mut vertices = Vec::with_capacity(grid.width() * grid.height());
     for j in 0..grid.height() {
         for i in 0..grid.width() {
-            let (y, color) = display(grid[(i, j)]);
+            let c = grid[(i, j)];
+            let (y, color) = display(c);
+            let y = y * 5.;
             let x = i as f32 * fdm.dx();
             let z = j as f32 * fdm.dx();
             let pos = [x, y, z].map(|v| v * scale);
+
+            let m = mandelbrot(c, max_iters);
+            let color = mandelbrot_color(m, max_iters);
+            let color = color.map(|c| c as f32 / 256.);
+
             vertices.push(Vertex::new(pos, color));
         }
     }

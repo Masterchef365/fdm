@@ -7,7 +7,7 @@ use idek::{
 use num_complex::Complex32;
 
 fn main() -> Result<()> {
-    launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(8))
+    launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(4))
 }
 
 struct FdmVisualizer {
@@ -26,7 +26,7 @@ struct FdmVisualizer {
 
 const SCALE: f32 = 10.;
 fn init_fdm() -> Fdm {
-    let width = 100;
+    let width = 200;
 
     let dx = SCALE / width as f32;
     let t = 0.0;

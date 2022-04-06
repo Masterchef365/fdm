@@ -1,12 +1,20 @@
-use fdm::{Fdm, Array2D, inner_size};
+use std::{
+    char::MAX,
+    fs::File,
+    io::{BufWriter, Write},
+    num::NonZeroU32,
+};
+
+use fdm::{inner_size, Array2D, Fdm};
 use idek::{
     prelude::*,
     winit::event::{ElementState, Event as WinitEvent, VirtualKeyCode, WindowEvent},
     IndexBuffer,
 };
 use num_complex::Complex32;
+use rayon::prelude::*;
 
-fn main() -> Result<()> {
+fn nah_main() -> Result<()> {
     launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(8))
 }
 
@@ -49,7 +57,7 @@ fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
     [
         fdm_vertices(&fdm, |cpx| (cpx.re, [0., 0.3, 1.]), scale),
         fdm_vertices(&fdm, |cpx| (cpx.im, [1., 0.3, 0.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.norm_sqr(), [1.; 3]), scale)
+        fdm_vertices(&fdm, |cpx| (cpx.norm_sqr(), [1.; 3]), scale),
     ]
 }
 
@@ -84,7 +92,7 @@ impl App for FdmVisualizer {
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
-            self.fdm.step(1./2., |_: f32| Complex32::new(0., 0.));
+            self.fdm.step(1. / 2., |_: f32| Complex32::new(0., 0.));
             self.refresh_vertices(ctx);
         }
 
@@ -93,20 +101,16 @@ impl App for FdmVisualizer {
                 .indices(self.indices)
                 .shader(self.point_shader)
                 .transform(translate(-SCALE - 1., 0., 0.)),
-
             DrawCmd::new(self.re_verts)
                 .indices(self.indices)
                 .shader(self.point_shader),
-
             DrawCmd::new(self.im_verts)
                 .indices(self.indices)
                 .shader(self.point_shader),
-
             DrawCmd::new(self.im_verts)
                 .indices(self.indices)
                 .shader(self.point_shader)
                 .transform(translate(-SCALE - 1., 0., -SCALE - 1.)),
-
             DrawCmd::new(self.re_verts)
                 .indices(self.indices)
                 .shader(self.point_shader)
@@ -156,6 +160,132 @@ impl FdmVisualizer {
         ctx.update_vertices(self.amp_verts, &amp_verts)?;
         Ok(())
     }
+}
+
+fn mandelbrot(c: Complex32, max_iters: u32) -> Option<NonZeroU32> {
+    let mut z = c;
+    for i in 1..=max_iters {
+        z = z * z + c;
+        if z.norm_sqr() >= 4. {
+            return NonZeroU32::new(i);
+        }
+    }
+
+    None
+}
+
+fn mandelbrot_image_aa(
+    width: usize,
+    height: usize,
+    scale: f32,
+    origin: (f32, f32),
+    max_iters: u32,
+    aa_divs: i32,
+    color_fn: impl Sync + Fn(Option<NonZeroU32>) -> [u8; 3],
+) -> Vec<u8> {
+    let (orig_x, orig_y) = origin;
+
+    let mut output = vec![0; width * height * 3];
+
+    let subpix_width = aa_divs * 2 + 1;
+    let subpix_area = subpix_width * subpix_width;
+
+    output
+        .par_chunks_exact_mut(width * 3)
+        .enumerate()
+        .for_each(|(row_idx, row)| {
+            for col_idx in 0..width {
+                let mut color = [0i32; 3];
+                for i in -aa_divs..=aa_divs {
+                    for j in -aa_divs..=aa_divs {
+                        let x = (col_idx as i32 * subpix_width + i) as f32
+                            / (width as i32 * subpix_width) as f32;
+                        let y = (row_idx as i32 * subpix_width + j as i32) as f32
+                            / (height as i32 * subpix_width) as f32;
+
+                        let c = Complex32::new(
+                            (x * 2. - 1.) * scale + orig_x,
+                            (y * 2. - 1.) * scale + orig_y,
+                        );
+
+                        color
+                            .iter_mut()
+                            .zip(color_fn(mandelbrot(c, max_iters)))
+                            .for_each(|(c, m)| *c += m as i32);
+                    }
+                }
+
+                let color = color.map(|c| (c / subpix_area) as u8);
+                row[col_idx * 3..][..3].copy_from_slice(&color);
+            }
+        });
+
+    output
+}
+
+fn mandelbrot_image(
+    width: usize,
+    height: usize,
+    scale: f32,
+    origin: (f32, f32),
+    max_iters: u32,
+    color: impl Fn(Option<NonZeroU32>) -> [u8; 3],
+) -> Vec<u8> {
+    let (orig_x, orig_y) = origin;
+
+    let mut output = Vec::with_capacity(width * height * 3);
+
+    for row in 0..height {
+        for col in 0..width {
+            let x = col as f32 / width as f32;
+            let y = row as f32 / height as f32;
+
+            let c = Complex32::new(
+                (x * 2. - 1.) * scale + orig_x,
+                (y * 2. - 1.) * scale + orig_y,
+            );
+
+            output.extend_from_slice(&color(mandelbrot(c, max_iters)));
+        }
+    }
+
+    output
+}
+
+fn mandelbrot_color(i: Option<NonZeroU32>, max_iters: u32) -> [u8; 3] {
+    match i {
+        Some(i) => {
+            let v = ((255 * i.get()) / max_iters) as u8;
+            let v = v.saturating_mul(2);
+            [
+                v,
+                v.saturating_add(10),
+                v.saturating_mul(2).saturating_add(3),
+            ]
+        }
+        None => [0; 3],
+    }
+}
+
+fn main() -> Result<()> {
+    let path = "out.ppm";
+    let mut file = BufWriter::new(File::create(path)?);
+    let max_iters = 255;
+    let (width, height) = (2_000, 2_000);
+
+    println!("Generating");
+    let time = std::time::Instant::now();
+    let image = mandelbrot_image_aa(width, height, 2., (-1. / 4., 0.), max_iters, 1, |i| {
+        mandelbrot_color(i, max_iters)
+    });
+    println!("Finished in {}s, writing...", time.elapsed().as_secs_f32());
+
+    writeln!(file, "P6")?;
+    writeln!(file, "{} {}", width, height)?;
+    writeln!(file, "255")?;
+    file.write_all(&image)?;
+
+    Ok(())
 }
 
 fn fdm_vertices(fdm: &Fdm, display: fn(Complex32) -> (f32, [f32; 3]), scale: f32) -> Vec<Vertex> {

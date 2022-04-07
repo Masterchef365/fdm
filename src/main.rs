@@ -24,6 +24,15 @@ struct FdmVisualizer {
     camera: MultiPlatformCamera,
 }
 
+
+// ( (.5+.5*sqrt(5))^n - (.5 - .5*sqrt(5))^n ) / sqrt(5)
+fn fib_o1(n: f32) -> Complex32 {
+    let half_root5 = (5f32).sqrt() / 2.;
+    (Complex32::new(0.5 + half_root5, 0.0).powf(n) 
+    - Complex32::new(0.5 - half_root5, 0.0).powf(n))
+        / ((5f32).sqrt())
+}
+
 fn init_fdm() -> Fdm {
     let n_cells = 10_000;
     let width = 10.;
@@ -36,8 +45,11 @@ fn init_fdm() -> Fdm {
 
     let init: Vec<Complex32> = (0..n_cells)
         .map(|idx| {
-            let x = (idx as f32 - n_cells as f32 / 2.) * dx;
-            wave_packet(x, t, a, h, m)
+            //let x = (idx as f32 - n_cells as f32 / 2.) * dx;
+            let x = idx as f32 * dx;
+            //Complex32::new(x, 0.)
+            fib_o1(x * 2.)
+            //wave_packet(x, t, a, h, m)
         })
         .collect();
 

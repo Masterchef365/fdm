@@ -28,7 +28,7 @@ struct FdmVisualizer {
 
 const SCALE: f32 = 10.;
 fn init_fdm() -> Fdm {
-    let width = 200;
+    let width = 100;
 
     let dx = SCALE / width as f32;
     let t = 0.0;
@@ -84,8 +84,12 @@ impl App for FdmVisualizer {
             amp_verts,
             fdm,
             point_shader: ctx.shader(
-                DEFAULT_VERTEX_SHADER,
-                DEFAULT_FRAGMENT_SHADER,
+                //DEFAULT_VERTEX_SHADER,
+                //DEFAULT_FRAGMENT_SHADER,
+                &std::fs::read("src/shaders/unlit.vert.spv")?,
+                &std::fs::read("src/shaders/unlit.frag.spv")?,
+                //include_bytes!("shaders/unlit.vert.spv"),
+                //include_bytes!("shaders/unlit.frag.spv"),
                 Primitive::Points,
             )?,
             re_verts,

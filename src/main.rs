@@ -54,12 +54,11 @@ fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
         fdm_vertices(
             &fdm,
             |cpx| {
+                let n = cpx.norm_sqr();
                 (
                     cpx.re.atan2(cpx.im),
                     //[cpx.re, (cpx.re.powf(2.) + cpx.im.powf(2.)).sqrt(), cpx.im].map(|v| v * 2.),
-                    [0.8, 0.2, 0.4]
-                        .map(|v| (1. - v) * cpx.re + v * cpx.im)
-                        .map(|v| v.abs() * 2. + 0.1),
+                    [(n * 8.).cos(), 1. - n, (n * 2.).sin()].map(|v| v * 2.),
                 )
             },
             scale,

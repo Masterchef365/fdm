@@ -5,6 +5,8 @@ use idek::{
     IndexBuffer,
 };
 use num_complex::Complex32;
+use rand::distributions::Uniform;
+use rand::prelude::*;
 
 fn main() -> Result<()> {
     launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(8))
@@ -56,8 +58,8 @@ fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
                     cpx.re.atan2(cpx.im),
                     //[cpx.re, (cpx.re.powf(2.) + cpx.im.powf(2.)).sqrt(), cpx.im].map(|v| v * 2.),
                     [0.8, 0.2, 0.4]
-                    .map(|v| (1. - v) * cpx.re + v * cpx.im)
-                    .map(|v| v.abs() * 2. + 0.1),
+                        .map(|v| (1. - v) * cpx.re + v * cpx.im)
+                        .map(|v| v.abs() * 2. + 0.1),
                 )
             },
             scale,
@@ -214,6 +216,17 @@ fn wave_packet_2d(width: usize, scale: f32, t: f32, a: Complex32, h: f32, m: f32
             grid[(i, j)] = wave_packet(r, t, a, h, m);
         }
     }
+
+    let s = 5.5f32;
+    let mut rng = rand::thread_rng();
+    let mag = Uniform::new(-s, s);
+    let dir = Uniform::new(0., std::f32::consts::PI);
+
+    grid.data_mut()
+        .iter_mut()
+        .zip(dir.sample_iter(&mut thread_rng()))
+        .zip(mag.sample_iter(&mut rng))
+        .for_each(|((v, r), m)| *v += Complex32::new(r.cos(), r.sin()) * m);
 
     grid
 }

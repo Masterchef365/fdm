@@ -49,7 +49,19 @@ fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
     [
         fdm_vertices(&fdm, |cpx| (cpx.re, [0., 0.3, 1.]), scale),
         fdm_vertices(&fdm, |cpx| (cpx.im, [1., 0.3, 0.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.re.atan2(cpx.im), [1.; 3]), scale),
+        fdm_vertices(
+            &fdm,
+            |cpx| {
+                (
+                    cpx.re.atan2(cpx.im),
+                    //[cpx.re, (cpx.re.powf(2.) + cpx.im.powf(2.)).sqrt(), cpx.im].map(|v| v * 2.),
+                    [0.8, 0.2, 0.4]
+                    .map(|v| (1. - v) * cpx.re + v * cpx.im)
+                    .map(|v| v.abs() * 2. + 0.1),
+                )
+            },
+            scale,
+        ),
     ]
 }
 

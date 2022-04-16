@@ -1,4 +1,4 @@
-use fdm::{Fdm, Array2D, inner_size};
+use fdm::{inner_size, Array2D, Fdm};
 use idek::{
     prelude::*,
     winit::event::{ElementState, Event as WinitEvent, VirtualKeyCode, WindowEvent},
@@ -26,7 +26,7 @@ struct FdmVisualizer {
 
 const SCALE: f32 = 10.;
 fn init_fdm() -> Fdm {
-    let width = 100;
+    let width = 200;
 
     let dx = SCALE / width as f32;
     let t = 0.0;
@@ -49,7 +49,7 @@ fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
     [
         fdm_vertices(&fdm, |cpx| (cpx.re, [0., 0.3, 1.]), scale),
         fdm_vertices(&fdm, |cpx| (cpx.im, [1., 0.3, 0.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.re.atan2(cpx.im), [1.; 3]), scale)
+        fdm_vertices(&fdm, |cpx| (cpx.re.atan2(cpx.im), [1.; 3]), scale),
     ]
 }
 
@@ -84,34 +84,36 @@ impl App for FdmVisualizer {
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
-            self.fdm.step(1./2., |_: f32| Complex32::new(0., 0.));
+            self.fdm.step(1. / 2., |_: f32| Complex32::new(0., 0.));
             self.refresh_vertices(ctx);
         }
 
-        Ok(vec![
-            DrawCmd::new(self.amp_verts)
-                .indices(self.indices)
-                .shader(self.point_shader)
-                .transform(translate(-SCALE - 1., 0., 0.)),
-
+        let mut cmds = vec![
             DrawCmd::new(self.re_verts)
                 .indices(self.indices)
                 .shader(self.point_shader),
-
             DrawCmd::new(self.im_verts)
                 .indices(self.indices)
                 .shader(self.point_shader),
-
             DrawCmd::new(self.im_verts)
                 .indices(self.indices)
                 .shader(self.point_shader)
                 .transform(translate(-SCALE - 1., 0., -SCALE - 1.)),
-
             DrawCmd::new(self.re_verts)
                 .indices(self.indices)
                 .shader(self.point_shader)
                 .transform(translate(0., 0., -SCALE - 1.)),
-        ])
+        ];
+
+        cmds.extend((-3..=3).map(|y| {
+            let y = y as f32 * std::f32::consts::TAU;
+            DrawCmd::new(self.amp_verts)
+                .indices(self.indices)
+                .shader(self.point_shader)
+                .transform(translate(-SCALE - 1., y, 0.))
+        }));
+
+        Ok(cmds)
     }
 
     fn event(

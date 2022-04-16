@@ -9,7 +9,7 @@ use rand::distributions::Uniform;
 use rand::prelude::*;
 
 fn main() -> Result<()> {
-    launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(8))
+    launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(4))
 }
 
 struct FdmVisualizer {
@@ -58,7 +58,8 @@ fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
                 (
                     cpx.re.atan2(cpx.im),
                     //[cpx.re, (cpx.re.powf(2.) + cpx.im.powf(2.)).sqrt(), cpx.im].map(|v| v * 2.),
-                    [(n * 8.).cos(), 1. - n, (n * 2.).sin()].map(|v| v * 2.),
+                    //[(n * 8.).cos(), 1. - n, (n * 2.).sin()].map(|v| v * 2.),
+                    [cpx.re, cpx.im, 0.],
                 )
             },
             scale,

@@ -28,7 +28,7 @@ void main() {
     gl_Position = camera[gl_ViewIndex]
         * model_mats[model_index]
         * vec4(vert_pos, 1.0);
-    gl_PointSize = 8.;
+    gl_PointSize = 18.;
     frag_color = vert_color;
 }
 

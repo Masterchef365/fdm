@@ -28,7 +28,7 @@ struct FdmVisualizer {
 
 const SCALE: f32 = 10.;
 fn init_fdm() -> Fdm {
-    let width = 100;
+    let width = 30;
 
     let dx = SCALE / width as f32;
     let t = 0.0;
@@ -49,8 +49,8 @@ fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
 
     let scale = 1.0;
     [
-        fdm_vertices(&fdm, |cpx| (cpx.re, [0., 0.3, 1.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.im, [1., 0.3, 0.]), scale),
+        fdm_vertices(&fdm, |cpx| (cpx.re, [cpx.re, cpx.im, 0.]), scale),
+        fdm_vertices(&fdm, |cpx| (cpx.im, [cpx.re, cpx.im, 0.]), scale),
         fdm_vertices(
             &fdm,
             |cpx| {
@@ -102,7 +102,9 @@ impl App for FdmVisualizer {
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
-            self.fdm.step(1. / 2., |_: f32| Complex32::new(0., 0.));
+            let r = 1. / 2.;
+            let r = r / 150.;
+            self.fdm.step(r, |_: f32| Complex32::new(0., 0.));
             self.refresh_vertices(ctx);
         }
 
@@ -221,6 +223,7 @@ fn wave_packet_2d(width: usize, scale: f32, t: f32, a: Complex32, h: f32, m: f32
         }
     }
 
+    /*
     let s = 5.5f32;
     let mut rng = rand::thread_rng();
     let mag = Uniform::new(-s, s);
@@ -231,6 +234,7 @@ fn wave_packet_2d(width: usize, scale: f32, t: f32, a: Complex32, h: f32, m: f32
         .zip(dir.sample_iter(&mut thread_rng()))
         .zip(mag.sample_iter(&mut rng))
         .for_each(|((v, r), m)| *v += Complex32::new(r.cos(), r.sin()) * m);
+    */
 
     grid
 }

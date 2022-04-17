@@ -183,8 +183,8 @@ impl FdmVisualizer {
 fn fdm_vertices(fdm: &Fdm, display: fn(Complex32) -> (f32, [f32; 3]), scale: f32) -> Vec<Vertex> {
     let grid = fdm.grid();
     let mut vertices = Vec::with_capacity(grid.width() * grid.height());
-    for j in 0..grid.height() {
-        for i in 0..grid.width() {
+    for j in 1..grid.height()-2 {
+        for i in 1..grid.width()-2 {
             let (y, color) = display(grid[(i, j)]);
             let x = i as f32 * fdm.dx();
             let z = j as f32 * fdm.dx();

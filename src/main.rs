@@ -59,7 +59,7 @@ fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
                     cpx.re.atan2(cpx.im),
                     //[cpx.re, (cpx.re.powf(2.) + cpx.im.powf(2.)).sqrt(), cpx.im].map(|v| v * 2.),
                     //[(n * 8.).cos(), 1. - n, (n * 2.).sin()].map(|v| v * 2.),
-                    [cpx.re, cpx.im, 0.],
+                    [cpx.re + 0.5, cpx.im + 0.5, 0.5],
                 )
             },
             scale,
@@ -103,7 +103,7 @@ impl App for FdmVisualizer {
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
             let r = 1. / 2.;
-            let r = r / 15.;
+            //let r = r / 15.;
             self.fdm.step(r, |_: f32| Complex32::new(0., 0.));
             self.refresh_vertices(ctx);
         }
@@ -183,8 +183,8 @@ impl FdmVisualizer {
 fn fdm_vertices(fdm: &Fdm, display: fn(Complex32) -> (f32, [f32; 3]), scale: f32) -> Vec<Vertex> {
     let grid = fdm.grid();
     let mut vertices = Vec::with_capacity(grid.width() * grid.height());
-    for j in 0..grid.height() {
-        for i in 0..grid.width() {
+    for j in 1..grid.height()-2 {
+        for i in 1..grid.width()-2 {
             let (y, color) = display(grid[(i, j)]);
             let x = i as f32 * fdm.dx();
             let z = j as f32 * fdm.dx();

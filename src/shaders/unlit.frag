@@ -33,7 +33,7 @@ void main() {
 
     if (amogus) discard;
 
-    vec3 color = vec3(fragColor) + vec3(0.5);
+    vec3 color = vec3(fragColor);
 
     //color *= vec3(!amogus);
     color += vec3(visor);

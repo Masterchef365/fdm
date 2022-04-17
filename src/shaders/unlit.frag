@@ -29,13 +29,14 @@ void main() {
     bool visor = i_point_c == ivec2(3, 1)
         || i_point_c == ivec2(2, 1);
 
-    amogus = amogus || visor;
+    //amogus = amogus || visor;
 
-    //if (amogus) discard;
+    if (amogus) discard;
 
     vec3 color = vec3(fragColor) + vec3(0.5);
 
-    color *= vec3(!amogus);
+    //color *= vec3(!amogus);
+    color += vec3(visor);
 
     outColor = vec4(color, 1.0);
 }

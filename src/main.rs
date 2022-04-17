@@ -9,7 +9,7 @@ use rand::distributions::Uniform;
 use rand::prelude::*;
 
 fn main() -> Result<()> {
-    launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(4))
+    launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(0))
 }
 
 struct FdmVisualizer {
@@ -28,7 +28,7 @@ struct FdmVisualizer {
 
 const SCALE: f32 = 10.;
 fn init_fdm() -> Fdm {
-    let width = 130;
+    let width = 380;
 
     let dx = SCALE / width as f32;
     let t = 0.0;

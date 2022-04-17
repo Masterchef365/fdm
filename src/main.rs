@@ -49,8 +49,8 @@ fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
 
     let scale = 1.0;
     [
-        fdm_vertices(&fdm, |cpx| (cpx.re, [cpx.re, cpx.im, 0.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.im, [cpx.re, cpx.im, 0.]), scale),
+        fdm_vertices(&fdm, |cpx| (cpx.re, [0., 0.3, 1.]), scale),
+        fdm_vertices(&fdm, |cpx| (cpx.im, [1., 0.3, 0.]), scale),
         fdm_vertices(
             &fdm,
             |cpx| {

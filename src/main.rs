@@ -1,4 +1,6 @@
-use fdm::{Fdm, Array2D, inner_size};
+use std::sync::mpsc::{Sender, self, Receiver};
+
+use fdm::{inner_size, Array2D, Fdm};
 use idek::{
     prelude::*,
     winit::event::{ElementState, Event as WinitEvent, VirtualKeyCode, WindowEvent},
@@ -17,18 +19,30 @@ struct FdmVisualizer {
     indices: IndexBuffer,
     point_shader: Shader,
 
-    fdm: Fdm,
+    rx: Receiver<Array2D>,
+    grid: Array2D,
 
     pause: bool,
 
     camera: MultiPlatformCamera,
 }
 
+fn sim_thread(tx: Sender<Array2D>) {
+    let mut fdm = init_fdm();
+
+    loop {
+        fdm.step(1. / 2.);
+        tx.send(fdm.grid().clone()).expect("Render hungup");
+    }
+}
+
 const SCALE: f32 = 10.;
+const WIDTH: usize = 100;
+const DX: f32 = SCALE as f32 / WIDTH as f32;
+
 fn init_fdm() -> Fdm {
     let width = 100;
 
-    let dx = SCALE / width as f32;
     let t = 0.0;
     let a = Complex32::from_polar(1., 0.);
     let h = 1.;
@@ -37,25 +51,28 @@ fn init_fdm() -> Fdm {
     let mut init = wave_packet_2d(width, SCALE, t, a, h, m);
     init.data_mut().iter_mut().for_each(|c| *c *= 5.);
 
-    Fdm::new(init, dx)
+    Fdm::new(init, DX)
 }
 
-fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
+fn scene(grid: &Array2D) -> [Vec<Vertex>; 3] {
     //dbg!(fdm.grid().data().iter().map(|c| c.norm_sqr()).sum::<f32>());
 
     let scale = 1.0;
     [
-        fdm_vertices(&fdm, |cpx| (cpx.re, [0., 0.3, 1.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.im, [1., 0.3, 0.]), scale),
-        fdm_vertices(&fdm, |cpx| (cpx.norm_sqr(), [1.; 3]), scale)
+        fdm_vertices(grid, |cpx| (cpx.re, [0., 0.3, 1.]), scale, DX),
+        fdm_vertices(grid, |cpx| (cpx.im, [1., 0.3, 0.]), scale, DX),
+        fdm_vertices(grid, |cpx| (cpx.norm_sqr(), [1.; 3]), scale, DX),
     ]
 }
 
 impl App for FdmVisualizer {
     fn init(ctx: &mut Context, platform: &mut Platform, _: ()) -> Result<Self> {
-        let fdm = init_fdm();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(|| sim_thread(tx));
 
-        let [re_verts, im_verts, amp_verts] = scene(&fdm);
+        let grid = rx.recv()?;
+
+        let [re_verts, im_verts, amp_verts] = scene(&grid);
         let indices = linear_indices(amp_verts.len());
 
         let re_verts = ctx.vertices(&re_verts, true)?;
@@ -67,7 +84,8 @@ impl App for FdmVisualizer {
         Ok(Self {
             pause: true,
             amp_verts,
-            fdm,
+            rx,
+            grid,
             point_shader: ctx.shader(
                 DEFAULT_VERTEX_SHADER,
                 DEFAULT_FRAGMENT_SHADER,
@@ -81,8 +99,8 @@ impl App for FdmVisualizer {
     }
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
-        if !self.pause {
-            self.fdm.step(1./2.);
+        if let Ok(grid) = self.rx.try_recv() {
+            self.grid = grid;
             self.refresh_vertices(ctx)?;
         }
 
@@ -91,20 +109,16 @@ impl App for FdmVisualizer {
                 .indices(self.indices)
                 .shader(self.point_shader)
                 .transform(translate(-SCALE - 1., 0., 0.)),
-
             DrawCmd::new(self.re_verts)
                 .indices(self.indices)
                 .shader(self.point_shader),
-
             DrawCmd::new(self.im_verts)
                 .indices(self.indices)
                 .shader(self.point_shader),
-
             DrawCmd::new(self.im_verts)
                 .indices(self.indices)
                 .shader(self.point_shader)
                 .transform(translate(-SCALE - 1., 0., -SCALE - 1.)),
-
             DrawCmd::new(self.re_verts)
                 .indices(self.indices)
                 .shader(self.point_shader)
@@ -122,6 +136,7 @@ impl App for FdmVisualizer {
             ctx.set_camera_prefix(self.camera.get_prefix())
         }
 
+        /*
         if let Event::Winit(event) = &event {
             if let WinitEvent::WindowEvent { event, .. } = event {
                 if let WindowEvent::KeyboardInput { input, .. } = event {
@@ -140,6 +155,8 @@ impl App for FdmVisualizer {
                 }
             }
         }
+        */
+        self.refresh_vertices(ctx)?;
 
         idek::close_when_asked(platform, &event);
         Ok(())
@@ -148,7 +165,7 @@ impl App for FdmVisualizer {
 
 impl FdmVisualizer {
     pub fn refresh_vertices(&mut self, ctx: &mut Context) -> Result<()> {
-        let [re_verts, im_verts, amp_verts] = scene(&self.fdm);
+        let [re_verts, im_verts, amp_verts] = scene(&self.grid);
         ctx.update_vertices(self.im_verts, &im_verts)?;
         ctx.update_vertices(self.re_verts, &re_verts)?;
         ctx.update_vertices(self.amp_verts, &amp_verts)?;
@@ -156,15 +173,17 @@ impl FdmVisualizer {
     }
 }
 
-fn fdm_vertices(fdm: &Fdm, display: fn(Complex32) -> (f32, [f32; 3]), scale: f32) -> Vec<Vertex> {
-    let grid = fdm.grid();
+fn fdm_vertices(
+    grid: &Array2D,
+    display: fn(Complex32) -> (f32, [f32; 3]),
+    scale: f32,
+    dx: f32,
+) -> Vec<Vertex> {
     let mut vertices = Vec::with_capacity(grid.width() * grid.height());
     for j in 0..grid.height() {
         for i in 0..grid.width() {
             let (y, color) = display(grid[(i, j)]);
-            let x = i as f32 * fdm.dx();
-            let z = j as f32 * fdm.dx();
-            let pos = [x, y, z].map(|v| v * scale);
+            let pos = [i as f32 * dx, y, j as f32 * dx].map(|v| v * scale);
             vertices.push(Vertex::new(pos, color));
         }
     }

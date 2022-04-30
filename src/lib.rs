@@ -2,10 +2,6 @@ mod array2d;
 use num_complex::Complex32;
 pub type Array2D = array2d::Array2D<Complex32>;
 
-const fn zero() -> Complex32 {
-    Complex32::new(0., 0.)
-}
-
 pub struct Fdm {
     last: Array2D,
     current: Array2D,
@@ -24,7 +20,7 @@ impl Fdm {
         }
     }
 
-    pub fn step(&mut self, dt: f32, _v: impl Fn(f32) -> Complex32) {
+    pub fn step(&mut self, dt: f32) {
         let (nx, ny) = inner_size(&self.current);
 
         std::mem::swap(&mut self.last, &mut self.current);

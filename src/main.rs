@@ -37,8 +37,6 @@ fn init_fdm() -> Fdm {
     let mut init = wave_packet_2d(width, SCALE, t, a, h, m);
     init.data_mut().iter_mut().for_each(|c| *c *= 5.);
 
-    //init[(width/2, width/2)] = Complex32::new(1000., 0.);
-
     Fdm::new(init, dx)
 }
 
@@ -84,8 +82,8 @@ impl App for FdmVisualizer {
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
-            self.fdm.step(1./2., |_: f32| Complex32::new(0., 0.));
-            self.refresh_vertices(ctx);
+            self.fdm.step(1./2.);
+            self.refresh_vertices(ctx)?;
         }
 
         Ok(vec![

@@ -39,13 +39,17 @@ fn audio_sim_thread(grid_tx: Sender<Array2D>) -> Result<()> {
 
     let sample_rate = 48_000;
 
-    let desired_framerate = 60;
+    let desired_framerate = 90;
 
     let samples_per_frame = sample_rate / desired_framerate;
 
     let mut sample_offset = 0;
     loop {
-        if dbg!(sink.len()) >= 3 {
+        if sink.len() == 0 {
+            dbg!("fuc");
+        }
+
+        if sink.len() >= 5 {
             std::thread::sleep(Duration::from_millis(10));
             continue;
         }
@@ -84,7 +88,7 @@ fn grid_audio(
         sample_offset,
         n_samples,
         rate,
-        440.,
+        340.,
         current[pos],
         last[pos],
     )
@@ -107,10 +111,16 @@ fn oscillator(
 
     (0..n_samples)
         .map(|i| {
-            let sweep = i as f32 / n_samples as f32;
             let sample_idx = i + sample_offset;
-            let sine = (sample_idx as f32 * TAU * freq / rate as f32).sin();
+
+            let sweep = i as f32 / n_samples as f32;
+
+            let time = sample_idx as f32 / rate as f32; 
+
+            let sine = (time * TAU * freq).sin();
+
             let amp = mix(begin_amp, end_amp, sweep).clamp(0., 1.);
+
             sine * amp
         })
         .collect()

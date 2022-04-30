@@ -86,14 +86,15 @@ fn grid_audio(
 ) -> Vec<f32> {
     let mut audio = vec![0.0; n_samples];
 
-    let x_vals = (0..current.width()).step_by(5);
-    let freqs = (440..).step_by(100);
+    let x_vals = (0..current.width()).step_by(10);
+    let freqs = (140..).step_by(200);
 
-    let volume = 1. / 5.;
+    let volume = 1. / 10.;
 
     for (x, freq) in x_vals.zip(freqs) {
         let pos = (x, current.height() / 2);
 
+        let f = Complex32::new(1., 1.);
         let iter = oscillator(
             sample_offset,
             n_samples,
@@ -110,6 +111,18 @@ fn grid_audio(
     }
 
     audio
+
+    /*
+    let pos = (last.width()/2, last.height()/2);
+    oscillator(
+        sample_offset,
+        n_samples,
+        rate,
+        440.,
+        current[pos],
+        last[pos],
+    ).collect()
+    */
 }
 
 fn mix(a: f32, b: f32, t: f32) -> f32 {
@@ -127,6 +140,9 @@ fn oscillator(
     let begin_amp = last.norm_sqr();
     let end_amp = current.norm_sqr();
 
+    let begin_phase = last.arg();
+    let end_phase = last.arg();
+
     (0..n_samples).map(move |i| {
         let sample_idx = i + sample_offset;
 
@@ -134,7 +150,11 @@ fn oscillator(
 
         let time = sample_idx as f32 / rate as f32;
 
-        let sine = (time * TAU * freq).sin();
+        let phase = mix(begin_phase, end_phase, sweep);
+
+        let sine = (time * TAU * freq + phase).sin();
+        //let sine = if sine > 0. { 1. } else { -1. };
+
 
         let amp = mix(begin_amp, end_amp, sweep).clamp(0., 1.);
 

@@ -50,7 +50,7 @@ fn audio_sim_thread(grid_tx: Sender<Array2D>) -> Result<()> {
             dbg!("fuc");
         }
 
-        if sink.len() >= 4 {
+        if sink.len() >= 5 {
             std::thread::sleep(Duration::from_millis(10));
             continue;
         }
@@ -147,8 +147,7 @@ fn oscillator(
         let phase = mix(begin_phase, end_phase, sweep);
 
         let sine = (time * TAU * freq + phase).sin();
-        let sine = if sine > 0. { 1. } else { -1. };
-
+        //let sine = if sine > 0. { 1. } else { -1. };
 
         let amp = mix(begin_amp, end_amp, sweep).clamp(0., 1.);
 
@@ -185,10 +184,14 @@ fn scene(grid: &Array2D) -> [Vec<Vertex>; 3] {
     ]
 }
 
+fn piano(n: usize) -> f32 {
+    (2.0f32).powf((n as f32 - 48.) / 12.) * 440.
+}
+
 fn grid_params(grid: &Array2D) -> Vec<((usize, usize), f32, f32)> {
     let mut samples = vec![];
-    let rows = WIDTH / 8;
-    let cols = WIDTH / 8;
+    let rows = 33;
+    let cols = 33;
 
     for row in 0..rows {
         for col in 0..cols {
@@ -199,9 +202,10 @@ fn grid_params(grid: &Array2D) -> Vec<((usize, usize), f32, f32)> {
             let j = row as f32 / rows as f32;
 
             let wave = i;
-            let freq = 220. + j * 100.;
+            //let freq = 440. + j * 53.88;
+            let freq = piano(row + 55);
 
-            samples.push(((x, y), freq, wave));
+            samples.push(((x + 1, y + 1), freq, wave));
         }
     }
 

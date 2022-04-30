@@ -50,7 +50,7 @@ fn audio_sim_thread(grid_tx: Sender<Array2D>) -> Result<()> {
             dbg!("fuc");
         }
 
-        if sink.len() >= 5 {
+        if sink.len() >= 4 {
             std::thread::sleep(Duration::from_millis(10));
             continue;
         }
@@ -86,20 +86,14 @@ fn grid_audio(
 ) -> Vec<f32> {
     let mut audio = vec![0.0; n_samples];
 
-    let x_vals = (0..current.width()).step_by(10);
-    let freqs = (140..).step_by(200);
+    let points = grid_params(current);
 
-    let volume = 1. / 10.;
-
-    for (x, freq) in x_vals.zip(freqs) {
-        let pos = (x, current.height() / 2);
-
-        let f = Complex32::new(1., 1.);
+    for &(pos, freq, wave) in &points {
         let iter = oscillator(
             sample_offset,
             n_samples,
             rate,
-            freq as f32,
+            freq,
             current[pos],
             last[pos],
         );
@@ -107,7 +101,7 @@ fn grid_audio(
         audio
             .iter_mut()
             .zip(iter)
-            .for_each(|(a, s)| *a += s * volume);
+            .for_each(|(a, s)| *a += s / points.len() as f32);
     }
 
     audio
@@ -153,7 +147,7 @@ fn oscillator(
         let phase = mix(begin_phase, end_phase, sweep);
 
         let sine = (time * TAU * freq + phase).sin();
-        //let sine = if sine > 0. { 1. } else { -1. };
+        let sine = if sine > 0. { 1. } else { -1. };
 
 
         let amp = mix(begin_amp, end_amp, sweep).clamp(0., 1.);
@@ -163,7 +157,7 @@ fn oscillator(
 }
 
 const SCALE: f32 = 10.;
-const WIDTH: usize = 50;
+const WIDTH: usize = 150;
 const DX: f32 = SCALE as f32 / WIDTH as f32;
 
 fn init_fdm() -> Fdm {
@@ -172,8 +166,10 @@ fn init_fdm() -> Fdm {
     let h = 1.;
     let m = 1.;
 
-    let mut init = wave_packet_2d(WIDTH, SCALE, t, a, h, m);
-    init.data_mut().iter_mut().for_each(|c| *c *= 5.);
+    let mut init = Array2D::new(WIDTH, WIDTH);//wave_packet_2d(WIDTH, SCALE, t, a, h, m);
+    let center = (init.width()/2 + 10,init.height()/2 + 5);
+    init[center] = Complex32::new(2., 1.) * WIDTH as f32 * 2.;
+    //init.data_mut().iter_mut().for_each(|c| *c *= 5.);
 
     Fdm::new(init, DX)
 }
@@ -187,6 +183,29 @@ fn scene(grid: &Array2D) -> [Vec<Vertex>; 3] {
         fdm_vertices(grid, |cpx| (cpx.im, [1., 0.3, 0.]), scale, DX),
         fdm_vertices(grid, |cpx| (cpx.norm_sqr(), [1.; 3]), scale, DX),
     ]
+}
+
+fn grid_params(grid: &Array2D) -> Vec<((usize, usize), f32, f32)> {
+    let mut samples = vec![];
+    let rows = WIDTH / 8;
+    let cols = WIDTH / 8;
+
+    for row in 0..rows {
+        for col in 0..cols {
+            let x = col * grid.width() / cols;
+            let y = row * grid.height() / rows;
+
+            let i = col as f32 / cols as f32;
+            let j = row as f32 / rows as f32;
+
+            let wave = i;
+            let freq = 220. + j * 100.;
+
+            samples.push(((x, y), freq, wave));
+        }
+    }
+
+    samples
 }
 
 impl App for FdmVisualizer {

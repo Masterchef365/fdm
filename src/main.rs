@@ -1,6 +1,7 @@
 use std::{
     f32::consts::TAU,
-    sync::mpsc::{self, Receiver, Sender}, time::Duration,
+    sync::mpsc::{self, Receiver, Sender},
+    time::Duration,
 };
 
 use fdm::{inner_size, Array2D, Fdm};
@@ -10,7 +11,7 @@ use idek::{
     IndexBuffer,
 };
 use num_complex::Complex32;
-use rodio::{OutputStream, Sink, buffer::SamplesBuffer};
+use rodio::{buffer::SamplesBuffer, OutputStream, Sink};
 
 fn main() -> Result<()> {
     launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(8))
@@ -83,15 +84,32 @@ fn grid_audio(
     last: &Array2D,
     current: &Array2D,
 ) -> Vec<f32> {
-    let pos = (current.width() / 2, current.height() / 2);
-    oscillator(
-        sample_offset,
-        n_samples,
-        rate,
-        340.,
-        current[pos],
-        last[pos],
-    )
+    let mut audio = vec![0.0; n_samples];
+
+    let x_vals = (0..current.width()).step_by(5);
+    let freqs = (440..).step_by(100);
+
+    let volume = 1. / 5.;
+
+    for (x, freq) in x_vals.zip(freqs) {
+        let pos = (x, current.height() / 2);
+
+        let iter = oscillator(
+            sample_offset,
+            n_samples,
+            rate,
+            freq as f32,
+            current[pos],
+            last[pos],
+        );
+
+        audio
+            .iter_mut()
+            .zip(iter)
+            .for_each(|(a, s)| *a += s * volume);
+    }
+
+    audio
 }
 
 fn mix(a: f32, b: f32, t: f32) -> f32 {
@@ -105,25 +123,23 @@ fn oscillator(
     freq: f32,
     last: Complex32,
     current: Complex32,
-) -> Vec<f32> {
+) -> impl Iterator<Item = f32> {
     let begin_amp = last.norm_sqr();
     let end_amp = current.norm_sqr();
 
-    (0..n_samples)
-        .map(|i| {
-            let sample_idx = i + sample_offset;
+    (0..n_samples).map(move |i| {
+        let sample_idx = i + sample_offset;
 
-            let sweep = i as f32 / n_samples as f32;
+        let sweep = i as f32 / n_samples as f32;
 
-            let time = sample_idx as f32 / rate as f32; 
+        let time = sample_idx as f32 / rate as f32;
 
-            let sine = (time * TAU * freq).sin();
+        let sine = (time * TAU * freq).sin();
 
-            let amp = mix(begin_amp, end_amp, sweep).clamp(0., 1.);
+        let amp = mix(begin_amp, end_amp, sweep).clamp(0., 1.);
 
-            sine * amp
-        })
-        .collect()
+        sine * amp
+    })
 }
 
 const SCALE: f32 = 10.;

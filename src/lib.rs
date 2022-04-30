@@ -49,6 +49,10 @@ impl Fdm {
         &self.current
     }
 
+    pub fn last_grid(&self) -> &Array2D {
+        &self.last
+    }
+
     pub fn grid_mut(&mut self) -> &mut Array2D {
         &mut self.current
     }

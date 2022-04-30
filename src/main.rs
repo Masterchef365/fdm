@@ -1,4 +1,7 @@
-use std::sync::mpsc::{Sender, self, Receiver};
+use std::{
+    f32::consts::TAU,
+    sync::mpsc::{self, Receiver, Sender}, time::Duration,
+};
 
 use fdm::{inner_size, Array2D, Fdm};
 use idek::{
@@ -7,6 +10,7 @@ use idek::{
     IndexBuffer,
 };
 use num_complex::Complex32;
+use rodio::{OutputStream, Sink, buffer::SamplesBuffer};
 
 fn main() -> Result<()> {
     launch::<(), FdmVisualizer>(Settings::default().vr_if_any_args().msaa_samples(8))
@@ -27,14 +31,89 @@ struct FdmVisualizer {
     camera: MultiPlatformCamera,
 }
 
-fn sim_thread(tx: Sender<Array2D>) {
+fn audio_sim_thread(grid_tx: Sender<Array2D>) -> Result<()> {
     let mut fdm = init_fdm();
 
+    let (_stream, stream_handle) = OutputStream::try_default()?;
+    let sink = Sink::try_new(&stream_handle)?;
+
+    let sample_rate = 48_000;
+
+    let desired_framerate = 60;
+
+    let samples_per_frame = sample_rate / desired_framerate;
+
+    let mut sample_offset = 0;
     loop {
+        if dbg!(sink.len()) >= 3 {
+            std::thread::sleep(Duration::from_millis(10));
+            continue;
+        }
+
         fdm.step(1. / 2.);
-        tx.send(fdm.grid().clone()).expect("Render hungup");
-        std::thread::sleep_ms(10);
+
+        let audio = grid_audio(
+            sample_offset,
+            samples_per_frame,
+            sample_rate,
+            fdm.last_grid(),
+            fdm.grid(),
+        );
+
+        sample_offset += audio.len();
+
+        let audio = SamplesBuffer::new(1, sample_rate as u32, audio);
+
+        sink.append(audio);
+
+        if grid_tx.send(fdm.grid().clone()).is_err() {
+            break Ok(());
+        }
     }
+}
+
+fn grid_audio(
+    sample_offset: usize,
+    n_samples: usize,
+    rate: usize,
+    last: &Array2D,
+    current: &Array2D,
+) -> Vec<f32> {
+    let pos = (current.width() / 2, current.height() / 2);
+    oscillator(
+        sample_offset,
+        n_samples,
+        rate,
+        440.,
+        current[pos],
+        last[pos],
+    )
+}
+
+fn mix(a: f32, b: f32, t: f32) -> f32 {
+    (1. - t) * a + t * b
+}
+
+fn oscillator(
+    sample_offset: usize,
+    n_samples: usize,
+    rate: usize,
+    freq: f32,
+    last: Complex32,
+    current: Complex32,
+) -> Vec<f32> {
+    let begin_amp = last.norm_sqr();
+    let end_amp = current.norm_sqr();
+
+    (0..n_samples)
+        .map(|i| {
+            let sweep = i as f32 / n_samples as f32;
+            let sample_idx = i + sample_offset;
+            let sine = (sample_idx as f32 * TAU * freq / rate as f32).sin();
+            let amp = mix(begin_amp, end_amp, sweep).clamp(0., 1.);
+            sine * amp
+        })
+        .collect()
 }
 
 const SCALE: f32 = 10.;
@@ -67,12 +146,12 @@ fn scene(grid: &Array2D) -> [Vec<Vertex>; 3] {
 impl App for FdmVisualizer {
     fn init(ctx: &mut Context, platform: &mut Platform, _: ()) -> Result<Self> {
         let (tx, rx) = mpsc::channel();
-        std::thread::spawn(|| sim_thread(tx));
+        std::thread::spawn(|| audio_sim_thread(tx).expect("Audio thread"));
 
         let grid = rx.recv()?;
 
         let [re_verts, im_verts, amp_verts] = scene(&grid);
-        let indices = line_grid_indices(WIDTH);//linear_indices(amp_verts.len());
+        let indices = line_grid_indices(WIDTH); //linear_indices(amp_verts.len());
 
         let re_verts = ctx.vertices(&re_verts, true)?;
         let im_verts = ctx.vertices(&im_verts, true)?;
@@ -98,10 +177,11 @@ impl App for FdmVisualizer {
     }
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
-        if let Ok(grid) = self.rx.try_recv() {
+        // Get the lastest grid
+        while let Ok(grid) = self.rx.try_recv() {
             self.grid = grid;
-            self.refresh_vertices(ctx)?;
         }
+        self.refresh_vertices(ctx)?;
 
         Ok(vec![
             DrawCmd::new(self.amp_verts)
@@ -200,7 +280,7 @@ fn line_grid_indices(width: usize) -> Vec<u32> {
             let base = (row * width + col) as u32;
             if col + 1 < width {
                 indices.push(base);
-                indices.push(base+1);
+                indices.push(base + 1);
             }
 
             if row + 1 < width {

@@ -17,7 +17,7 @@ struct FdmVisualizer {
     im_verts: VertexBuffer,
     amp_verts: VertexBuffer,
     indices: IndexBuffer,
-    point_shader: Shader,
+    shader: Shader,
 
     rx: Receiver<Array2D>,
     grid: Array2D,
@@ -33,22 +33,21 @@ fn sim_thread(tx: Sender<Array2D>) {
     loop {
         fdm.step(1. / 2.);
         tx.send(fdm.grid().clone()).expect("Render hungup");
+        std::thread::sleep_ms(10);
     }
 }
 
 const SCALE: f32 = 10.;
-const WIDTH: usize = 100;
+const WIDTH: usize = 50;
 const DX: f32 = SCALE as f32 / WIDTH as f32;
 
 fn init_fdm() -> Fdm {
-    let width = 100;
-
     let t = 0.0;
     let a = Complex32::from_polar(1., 0.);
     let h = 1.;
     let m = 1.;
 
-    let mut init = wave_packet_2d(width, SCALE, t, a, h, m);
+    let mut init = wave_packet_2d(WIDTH, SCALE, t, a, h, m);
     init.data_mut().iter_mut().for_each(|c| *c *= 5.);
 
     Fdm::new(init, DX)
@@ -73,7 +72,7 @@ impl App for FdmVisualizer {
         let grid = rx.recv()?;
 
         let [re_verts, im_verts, amp_verts] = scene(&grid);
-        let indices = linear_indices(amp_verts.len());
+        let indices = line_grid_indices(WIDTH);//linear_indices(amp_verts.len());
 
         let re_verts = ctx.vertices(&re_verts, true)?;
         let im_verts = ctx.vertices(&im_verts, true)?;
@@ -86,10 +85,10 @@ impl App for FdmVisualizer {
             amp_verts,
             rx,
             grid,
-            point_shader: ctx.shader(
+            shader: ctx.shader(
                 DEFAULT_VERTEX_SHADER,
                 DEFAULT_FRAGMENT_SHADER,
-                Primitive::Points,
+                Primitive::Lines,
             )?,
             re_verts,
             im_verts,
@@ -107,21 +106,21 @@ impl App for FdmVisualizer {
         Ok(vec![
             DrawCmd::new(self.amp_verts)
                 .indices(self.indices)
-                .shader(self.point_shader)
+                .shader(self.shader)
                 .transform(translate(-SCALE - 1., 0., 0.)),
             DrawCmd::new(self.re_verts)
                 .indices(self.indices)
-                .shader(self.point_shader),
+                .shader(self.shader),
             DrawCmd::new(self.im_verts)
                 .indices(self.indices)
-                .shader(self.point_shader),
+                .shader(self.shader),
             DrawCmd::new(self.im_verts)
                 .indices(self.indices)
-                .shader(self.point_shader)
+                .shader(self.shader)
                 .transform(translate(-SCALE - 1., 0., -SCALE - 1.)),
             DrawCmd::new(self.re_verts)
                 .indices(self.indices)
-                .shader(self.point_shader)
+                .shader(self.shader)
                 .transform(translate(0., 0., -SCALE - 1.)),
         ])
     }
@@ -192,6 +191,25 @@ fn fdm_vertices(
 
 fn linear_indices(len: usize) -> Vec<u32> {
     (0..len as u32).collect()
+}
+
+fn line_grid_indices(width: usize) -> Vec<u32> {
+    let mut indices = Vec::with_capacity(width * width * 2);
+    for row in 0..width {
+        for col in 0..width {
+            let base = (row * width + col) as u32;
+            if col + 1 < width {
+                indices.push(base);
+                indices.push(base+1);
+            }
+
+            if row + 1 < width {
+                indices.push(base);
+                indices.push(base + width as u32);
+            }
+        }
+    }
+    indices
 }
 
 /// Output the given wave function value for a wave packet at w(x, t) with parameters

@@ -1,17 +1,25 @@
 use fdm::fdm;
 use idek::{prelude::*, IndexBuffer};
-use std::time::Instant;
+use std::{time::Instant, f32::consts::{PI, TAU}};
 
 fn main() -> Result<()> {
     let dt = 0.01;
     let x_len = 1000;
     let init: Vec<f32> = (0..x_len)
         .map(|x| {
+
+            let x = x as f32 / x_len as f32;
+            let a = x * TAU;
+            (a * 2.).sin() / 2. +
+            a.sin() / 2.
+
+            /*
             if (x >= x_len / 3) && (x <= 2 * x_len / 3) {
                 1.
             } else {
                 0.
             }
+            */
         })
         .collect();
     let time_len = 2000;

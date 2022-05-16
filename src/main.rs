@@ -35,11 +35,46 @@ fn init_fdm() -> Fdm {
     let m = 1.;
 
     let mut init = wave_packet_2d(width, SCALE, t, a, h, m);
-    init.data_mut().iter_mut().for_each(|c| *c *= 5.);
+    init.data_mut().iter_mut().for_each(|c| *c *= 10.);
 
     //init[(width/2, width/2)] = Complex32::new(1000., 0.);
 
     Fdm::new(init, dx)
+}
+
+fn stroke_circle(r: isize) -> impl Iterator<Item = (isize, isize)> {
+    let mut x = 0;
+    let mut y = r;
+    let mut d = 3 - 2 * r;
+
+    std::iter::from_fn(move || {
+        if y < x {
+            return None;
+        }
+
+        let out = [
+            (x, y),
+            (-x, y),
+            (x, -y),
+            (-x, -y),
+            (y, x),
+            (-y, x),
+            (y, -x),
+            (-y, -x),
+        ];
+
+        x += 1;
+
+        if d > 0 {
+            y -= 1;
+            d = d + 4 * (x - y) + 10;
+        } else {
+            d = d + 4 * x + 6;
+        }
+
+        Some(out)
+    })
+    .flatten()
 }
 
 fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
@@ -86,6 +121,21 @@ impl App for FdmVisualizer {
         if !self.pause {
             self.fdm.step(1./2., |_: f32| Complex32::new(0., 0.));
             self.refresh_vertices(ctx);
+
+
+            let center = self.fdm.grid().width() as isize / 2;
+
+            let r = self.fdm.grid().width() as isize / 2;
+
+            for k in 1..4 {
+                for (x, y) in stroke_circle(r - k) {
+                    let x = (x + center) as usize;
+                    let y = (y + center) as usize;
+
+                    self.fdm.grid_mut()[(x, y)] = Complex32::new(0., 0.);
+                }
+            }
+
         }
 
         Ok(vec![

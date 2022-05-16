@@ -26,7 +26,7 @@ struct FdmVisualizer {
 
 const SCALE: f32 = 10.;
 fn init_fdm() -> Fdm {
-    let width = 100;
+    let width = 200;
 
     let dx = SCALE / width as f32;
     let t = 0.0;
@@ -35,7 +35,7 @@ fn init_fdm() -> Fdm {
     let m = 1.;
 
     let mut init = wave_packet_2d(width, SCALE, t, a, h, m);
-    init.data_mut().iter_mut().for_each(|c| *c *= 10.);
+    init.data_mut().iter_mut().for_each(|c| *c *= 5.);
 
     //init[(width/2, width/2)] = Complex32::new(1000., 0.);
 
@@ -120,8 +120,6 @@ impl App for FdmVisualizer {
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
             self.fdm.step(1./2., |_: f32| Complex32::new(0., 0.));
-            self.refresh_vertices(ctx);
-
 
             let center = self.fdm.grid().width() as isize / 2;
 
@@ -135,6 +133,8 @@ impl App for FdmVisualizer {
                     self.fdm.grid_mut()[(x, y)] = Complex32::new(0., 0.);
                 }
             }
+
+            self.refresh_vertices(ctx);
 
         }
 

@@ -44,6 +44,41 @@ fn init_fdm() -> Fdm {
     Fdm::new(init, dx)
 }
 
+fn stroke_circle(r: isize) -> impl Iterator<Item = (isize, isize)> {
+    let mut x = 0;
+    let mut y = r;
+    let mut d = 3 - 2 * r;
+
+    std::iter::from_fn(move || {
+        if y < x {
+            return None;
+        }
+
+        let out = [
+            (x, y),
+            (-x, y),
+            (x, -y),
+            (-x, -y),
+            (y, x),
+            (-y, x),
+            (y, -x),
+            (-y, -x),
+        ];
+
+        x += 1;
+
+        if d > 0 {
+            y -= 1;
+            d = d + 4 * (x - y) + 10;
+        } else {
+            d = d + 4 * x + 6;
+        }
+
+        Some(out)
+    })
+    .flatten()
+}
+
 fn scene(fdm: &Fdm) -> [Vec<Vertex>; 3] {
     //dbg!(fdm.grid().data().iter().map(|c| c.norm_sqr()).sum::<f32>());
 
@@ -102,10 +137,23 @@ impl App for FdmVisualizer {
 
     fn frame(&mut self, ctx: &mut Context, _: &mut Platform) -> Result<Vec<DrawCmd>> {
         if !self.pause {
-            let r = 1. / 2.;
-            //let r = r / 15.;
-            self.fdm.step(r, |_: f32| Complex32::new(0., 0.));
+            self.fdm.step(1./2., |_: f32| Complex32::new(0., 0.));
+
+            let center = self.fdm.grid().width() as isize / 2;
+
+            let r = self.fdm.grid().width() as isize / 2;
+
+            for k in 1..4 {
+                for (x, y) in stroke_circle(r - k) {
+                    let x = (x + center) as usize;
+                    let y = (y + center) as usize;
+
+                    self.fdm.grid_mut()[(x, y)] = Complex32::new(0., 0.);
+                }
+            }
+
             self.refresh_vertices(ctx);
+
         }
 
         let mut cmds = vec![
@@ -223,6 +271,7 @@ fn wave_packet_2d(width: usize, scale: f32, t: f32, a: Complex32, h: f32, m: f32
         }
     }
 
+    /*
     let s = 0.5f32;
     let mut rng = rand::thread_rng();
     let mag = Uniform::new(-s, s);
@@ -233,6 +282,7 @@ fn wave_packet_2d(width: usize, scale: f32, t: f32, a: Complex32, h: f32, m: f32
         .zip(dir.sample_iter(&mut thread_rng()))
         .zip(mag.sample_iter(&mut rng))
         .for_each(|((v, r), m)| *v += Complex32::new(r.cos(), r.sin()) * m);
+    */
 
     grid
 }
